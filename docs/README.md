@@ -11,7 +11,7 @@
 
 | بخش | سرفصل | موضوع و محتوا |
 |:---:|---|---|
-| **۰۱** | [**معماری نرم‌افزار**](./01-architecture/overview.md) | الگوهای طراحی MVVM، معماری پاک (Clean Architecture)، جریان یک‌طرفه داده (UDF) و پشته فناوری |
+| **۰۱** | [**معماری نرم‌افزار**](./01-architecture/overview.md)، [**پشته فناوری**](./01-architecture/tech-stack.md) و [**کپچای اختیاری روی دستگاه**](./01-architecture/captcha-on-device.md) | الگوهای طراحی MVVM، معماری پاک، جریان یک‌طرفه داده (UDF)، پشته فناوری و مستندات ممیزی/عملکرد تشخیص اختیاری کپچا روی دستگاه |
 | **۰۲** | [**مهندسی معکوس ASP.NET**](./02-reverse-engineering/aspnet-protocol.md)، [**رزرو و ناوبری هفته**](./02-reverse-engineering/meal-reservation-api.md)، [**خروج سرور**](./02-reverse-engineering/server-logout-flow.md)، [**پیام‌های خوانده‌نشده و قفل منو**](./02-reverse-engineering/unread-messages-and-menu-lock.md) و [**پروفایل من و تصویر کاربر**](./02-reverse-engineering/my-profile-and-user-image.md) | تحلیل عمیق پروتکل وب‌فرم‌های کلاسیک مایکروسافت، احراز هویت، جابه‌جایی هفته‌ها، پیام‌های خوانده‌نشده و رفع قفل منو با زنجیره دلتا، ساختار و فیلدهای `MyProfile.aspx` و `UserImage.ashx`، ابطال نشست سرور، رمزنگاری RSA، فریم‌های UpdatePanel و فیلدهای ViewState |
 | **۰۳** | [**ممیزی SSL، زنجیره گواهی و وضعیت فعلی Fallback**](./03-security-and-ssl/ssl-certificate-chain.md) | داده‌های واقعی سرور `jeton.bums.ac.ir`، علت نبود ریشه Certum در برخی دستگاه‌ها، توضیح شفاف درباره وضعیت فعلی بدون اعتبارسنجی گواهی (ریسک MITM) و طرح اصلاح آتی |
 | **۰۴** | [**خط لوله CI/CD و انتشار**](./04-ci-cd-and-release/github-actions.md) | پایپ‌لاین‌های GitHub Actions، تفکیک کامل جاب‌های تست و بیلد، نسخه پویا و توزیع فایل‌های نصبی پایدار |

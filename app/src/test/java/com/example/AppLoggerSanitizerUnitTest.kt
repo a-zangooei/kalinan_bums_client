@@ -34,4 +34,21 @@ class AppLoggerSanitizerUnitTest {
         assertFalse("Giant viewstate blob must not bloat logs", sanitized.contains("A".repeat(50)))
         assertTrue("Must include length indicator", sanitized.contains("VIEWSTATE_LEN_200"))
     }
+
+    @Test
+    fun testCaptchaAndOcrDigitSanitization() {
+        val raw = """
+            form: txtCaptcha=9182&captchaInput=7364
+            json: {"captcha":"4829","captchaInput":"5123","captchaDigits":"6041","recognizedDigits":"8890","solvedDigits":"1357","autoCaptchaDigits":"2468"}
+        """.trimIndent()
+        val sanitized = AppLogger.sanitize(raw)
+
+        listOf("9182", "7364", "4829", "5123", "6041", "8890", "1357", "2468").forEach { secretDigits ->
+            assertFalse("Captcha digits '$secretDigits' must be redacted", sanitized.contains(secretDigits))
+        }
+        assertTrue(sanitized.contains("[REDACTED_CAPTCHA]"))
+
+        val resultStr = com.example.data.captcha.solver.CaptchaResult.Success("4829").toString()
+        assertFalse("CaptchaResult.Success.toString() must redact digits", resultStr.contains("4829"))
+    }
 }

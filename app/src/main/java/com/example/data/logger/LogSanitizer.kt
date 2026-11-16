@@ -43,8 +43,9 @@ object LogSanitizer {
             // Mask raw Iranian mobile numbers (09xxxxxxxxx) and email addresses
             .replace(Regex("\\b09\\d{9}\\b"), "[REDACTED_MOBILE]")
             .replace(Regex("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}"), "[REDACTED_EMAIL]")
-            // Mask Captcha values
-            .replace(Regex("(txtCaptcha|captcha|captchaInput)(?:=|%3D|:\\s*)\"?([^&\\s\",}]+)\"?", RegexOption.IGNORE_CASE), "$1=[REDACTED_CAPTCHA]")
+            // Mask Captcha values and any OCR digit keys across key-value and JSON formats
+            .replace(Regex("(txtCaptcha|captcha|captchaInput|captchaDigits|recognizedDigits|solvedDigits|autoCaptchaDigits)(?:=|%3D|:\\s*)\"?([^&\\s\",}]+)\"?", RegexOption.IGNORE_CASE), "$1=[REDACTED_CAPTCHA]")
+            .replace(Regex("\"(txtCaptcha|captcha|captchaInput|captchaDigits|recognizedDigits|solvedDigits|autoCaptchaDigits)\"\\s*:\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE), "\"$1\":\"[REDACTED_CAPTCHA]\"")
             // Mask ASP.NET Session Cookie
             .replace(Regex("ASP\\.NET_SessionId(?:=|%3D)([^;,\\s&]+)", RegexOption.IGNORE_CASE), "ASP.NET_SessionId=***")
             // Mask Anti-CSRF Token

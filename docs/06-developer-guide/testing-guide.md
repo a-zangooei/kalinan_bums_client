@@ -45,10 +45,12 @@
 6. **`LoginSessionIsolationUnitTest.kt`:**
    - تست عدم ارسال درخواست پیش از ورود توسط `MessagesViewModel` در زمان راه‌اندازی اولیه و حفظ یکپارچگی کوکی نشست `AuthRepository` در اولین تلاش ورود.
 7. **`LoggingHardeningUnitTest.kt` و `AppLoggerSanitizerUnitTest.kt` و `ComprehensiveLoggingUnitTest.kt`:**
-   - تست پالایش خودکار گذرواژه‌ها، کوکی‌ها و داده‌های حساس در رویدادهای متنی و JSONL در `AppLogger` و `LogSanitizer`.
+   - تست پالایش خودکار گذرواژه‌ها، کوکی‌ها، فیلدهای کپچا/OCR و داده‌های حساس در رویدادهای متنی و JSONL در `AppLogger` و `LogSanitizer`.
    - تست ذخیره مرحله‌به‌مرحله و بدون سانسور صفحات خام HTML و پاسخ‌های Delta در `AppLogger.pageSnapshots` و ارجاع دقیق آن‌ها در رویدادهای HTTP، تست ثبت کرش `FATAL` و تست ساخت آرشیو ZIP کامل.
 8. **`UpdateRepositoryUnitTest.kt` و `KalinanUnitTests.kt`:**
    - تست منطق بررسی نسخه جدید، مدل‌های دامنه و متدهای کمکی رزرو.
+9. **`CaptchaPreprocessPipelineUnitTest.kt`، `MlKitCaptchaSolverUnitTest.kt` و `AuthViewModelAutoCaptchaUnitTest.kt`:**
+   - تست خالص الگوریتم‌های پیش‌پردازش تصویر کپچا روی آرایه پیکسل (بدون وابستگی به امولاتور)، اعتبارسنجی ۴ رقمی و تلاش‌های جایگزین حل‌گر با `OcrSession` جعلی، و یکپارچه‌سازی اختیاری در `AuthViewModel` (پیش‌فرض خاموش، لغو Job هنگام «کد جدید»، عدم رونویسی متن کاربر، عدم ورود خودکار و عدم ثبت لاگ).
 
 ---
 
