@@ -30,7 +30,9 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Refresh
@@ -107,7 +109,10 @@ internal fun LoginCredentialsCard(
     onCaptchaChange: (String) -> Unit,
     onRefreshCaptcha: () -> Unit,
     onToggleRememberMe: () -> Unit,
-    onSubmitLogin: () -> Unit
+    onSubmitLogin: () -> Unit,
+    isSolvingCaptcha: Boolean = false,
+    isCaptchaAutoFilled: Boolean = false,
+    captchaSoftMessage: String? = null
 ) {
     val passwordFocusRequester = remember { FocusRequester() }
     val captchaFocusRequester = remember { FocusRequester() }
@@ -393,6 +398,14 @@ internal fun LoginCredentialsCard(
                             false
                         }
                     }
+                    .semantics {
+                        stateDescription = when {
+                            isSolvingCaptcha -> "در حال تشخیص خودکار کد امنیتی"
+                            isCaptchaAutoFilled && captchaInput.isNotEmpty() -> "کد امنیتی به‌صورت خودکار پر شد، قابل ویرایش"
+                            !captchaSoftMessage.isNullOrBlank() -> captchaSoftMessage
+                            else -> "کد امنیتی چهار رقمی"
+                        }
+                    }
                     .testTag("captcha_input"),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
@@ -400,6 +413,68 @@ internal fun LoginCredentialsCard(
                     focusedLabelColor = TealPrimary
                 )
             )
+
+            AnimatedVisibility(
+                visible = !captchaSoftMessage.isNullOrBlank() ||
+                    isSolvingCaptcha ||
+                    (isCaptchaAutoFilled && captchaInput.isNotEmpty())
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = 4.dp, top = 6.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    when {
+                        !captchaSoftMessage.isNullOrBlank() -> {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = captchaSoftMessage,
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.testTag("captcha_soft_message")
+                            )
+                        }
+                        isSolvingCaptcha -> {
+                            CircularProgressIndicator(
+                                modifier = Modifier
+                                    .size(14.dp)
+                                    .testTag("captcha_solving_indicator"),
+                                strokeWidth = 2.dp,
+                                color = TealPrimary
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "در حال تشخیص خودکار کد امنیتی...",
+                                fontSize = 11.sp,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        isCaptchaAutoFilled && captchaInput.isNotEmpty() -> {
+                            Icon(
+                                imageVector = Icons.Default.CheckCircle,
+                                contentDescription = null,
+                                tint = TealPrimary,
+                                modifier = Modifier.size(14.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "پر شده خودکار",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = TealPrimary,
+                                modifier = Modifier.testTag("captcha_auto_filled_badge")
+                            )
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(10.dp))
 

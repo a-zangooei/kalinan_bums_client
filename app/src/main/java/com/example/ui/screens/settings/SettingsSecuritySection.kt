@@ -11,6 +11,7 @@ import androidx.compose.foundation.selection.toggleable
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Fingerprint
+import androidx.compose.material.icons.filled.Security
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -140,6 +141,60 @@ internal fun SecurityBiometricSection(
                         }
                     }
                 }
+            }
+        }
+    }
+}
+
+@Composable
+internal fun AutoCaptchaSettingsSection(
+    isAutoCaptchaEnabled: Boolean,
+    onToggleAutoCaptcha: (Boolean) -> Unit
+) {
+    SettingsSectionTitle(
+        title = "کمک به ورود",
+        icon = Icons.Default.Security
+    )
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .minimumInteractiveComponentSize()
+                    .clip(RoundedCornerShape(10.dp))
+                    .toggleable(
+                        value = isAutoCaptchaEnabled,
+                        role = Role.Switch,
+                        onValueChange = onToggleAutoCaptcha
+                    )
+                    .padding(vertical = 4.dp)
+                    .testTag("auto_captcha_switch"),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f).padding(end = 8.dp)) {
+                    Text(
+                        text = "تشخیص خودکار کد امنیتی (روی دستگاه)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = "تصویر فقط روی گوشی پردازش می‌شود، چیزی ارسال نمی‌شود و ممکن است گاهی اشتباه شود.",
+                        fontSize = 10.sp,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Switch(
+                    checked = isAutoCaptchaEnabled,
+                    onCheckedChange = null,
+                    colors = SwitchDefaults.colors(checkedThumbColor = TealPrimary)
+                )
             }
         }
     }

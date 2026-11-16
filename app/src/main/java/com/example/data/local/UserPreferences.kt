@@ -194,6 +194,13 @@ class UserPreferences @VisibleForTesting internal constructor(
         get() = uiPrefs.getBoolean(KEY_DEV_MODE, false)
         set(value) = uiPrefs.edit().putBoolean(KEY_DEV_MODE, value).apply()
 
+    var isAutoCaptchaEnabled: Boolean
+        get() = uiPrefs.getBoolean(KEY_AUTO_CAPTCHA_ENABLED, false)
+        set(value) {
+            uiPrefs.edit().putBoolean(KEY_AUTO_CAPTCHA_ENABLED, value).apply()
+            AppLogger.logInfo("UserPreferences", "AutoCaptchaChanged", "Auto captcha recognition set to $value")
+        }
+
     fun hasSavedCredentials(): Boolean {
         val enc = securePrefs ?: return false
         val rem = enc.getBoolean(KEY_REMEMBER_ME, false)
@@ -232,6 +239,7 @@ class UserPreferences @VisibleForTesting internal constructor(
         internal const val KEY_BIOMETRIC_LOCK = "biometric_lock_enabled"
         internal const val KEY_THEME_MODE = "theme_mode"
         internal const val KEY_DEV_MODE = "dev_mode_unlocked"
+        internal const val KEY_AUTO_CAPTCHA_ENABLED = "auto_captcha_enabled"
         internal const val KEY_MIGRATION_VERSION = "crypto_migration_version"
         internal const val CURRENT_MIGRATION_VERSION = 2
     }

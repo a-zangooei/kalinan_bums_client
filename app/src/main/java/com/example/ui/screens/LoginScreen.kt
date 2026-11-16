@@ -64,6 +64,9 @@ fun LoginScreen(
     val pageState by viewModel.pageState.collectAsStateWithLifecycle()
     val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
     val isCaptchaRefreshing by viewModel.isCaptchaRefreshing.collectAsStateWithLifecycle()
+    val isSolvingCaptcha by viewModel.isSolvingCaptcha.collectAsStateWithLifecycle()
+    val isCaptchaAutoFilled by viewModel.isCaptchaAutoFilled.collectAsStateWithLifecycle()
+    val captchaSoftMessage by viewModel.captchaSoftMessage.collectAsStateWithLifecycle()
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val isCompatibilityModeActive by viewModel.isCompatibilityModeActive.collectAsStateWithLifecycle()
 
@@ -131,7 +134,10 @@ fun LoginScreen(
         onRefreshCaptcha = { viewModel.refreshCaptcha() },
         onToggleRememberMe = { viewModel.toggleRememberMe() },
         onSubmitLogin = { viewModel.login(onLoginSuccess) },
-        modifier = modifier
+        modifier = modifier,
+        isSolvingCaptcha = isSolvingCaptcha,
+        isCaptchaAutoFilled = isCaptchaAutoFilled,
+        captchaSoftMessage = captchaSoftMessage
     )
 }
 
@@ -164,7 +170,10 @@ internal fun LoginScreenContent(
     onRefreshCaptcha: () -> Unit,
     onToggleRememberMe: () -> Unit,
     onSubmitLogin: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isSolvingCaptcha: Boolean = false,
+    isCaptchaAutoFilled: Boolean = false,
+    captchaSoftMessage: String? = null
 ) {
     PersianRtlLayout {
         Surface(
@@ -221,7 +230,10 @@ internal fun LoginScreenContent(
                     onCaptchaChange = onCaptchaChange,
                     onRefreshCaptcha = onRefreshCaptcha,
                     onToggleRememberMe = onToggleRememberMe,
-                    onSubmitLogin = onSubmitLogin
+                    onSubmitLogin = onSubmitLogin,
+                    isSolvingCaptcha = isSolvingCaptcha,
+                    isCaptchaAutoFilled = isCaptchaAutoFilled,
+                    captchaSoftMessage = captchaSoftMessage
                 )
 
                 Spacer(modifier = Modifier.height(16.dp))

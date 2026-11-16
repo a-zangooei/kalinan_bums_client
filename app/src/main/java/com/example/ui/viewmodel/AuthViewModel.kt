@@ -3,6 +3,9 @@ package com.example.ui.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.example.data.captcha.solver.CaptchaResult
+import com.example.data.captcha.solver.CaptchaSolver
+import com.example.data.captcha.solver.MlKitCaptchaSolver
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
 import com.example.data.model.LoginPageState
@@ -11,17 +14,20 @@ import com.example.data.repository.AuthRepository
 import com.example.data.security.BiometricAuthenticator
 import com.example.data.security.BiometricCapabilityChecker
 import com.example.data.security.BiometricHelper
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 
 class AuthViewModel(
     application: Application,
     private val authRepository: AuthRepository,
     private val userPrefs: UserPreferences,
-    private val biometricCapabilityChecker: BiometricCapabilityChecker
+    private val biometricCapabilityChecker: BiometricCapabilityChecker,
+    private val captchaSolverFactory: () -> CaptchaSolver = { MlKitCaptchaSolver() }
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
@@ -85,12 +91,29 @@ class AuthViewModel(
     private val _isCaptchaRefreshing = MutableStateFlow(false)
     val isCaptchaRefreshing: StateFlow<Boolean> = _isCaptchaRefreshing.asStateFlow()
 
+    private val _isAutoCaptchaEnabled = MutableStateFlow(userPrefs.isAutoCaptchaEnabled)
+    val isAutoCaptchaEnabled: StateFlow<Boolean> = _isAutoCaptchaEnabled.asStateFlow()
+
+    private val _isSolvingCaptcha = MutableStateFlow(false)
+    val isSolvingCaptcha: StateFlow<Boolean> = _isSolvingCaptcha.asStateFlow()
+
+    private val _isCaptchaAutoFilled = MutableStateFlow(false)
+    val isCaptchaAutoFilled: StateFlow<Boolean> = _isCaptchaAutoFilled.asStateFlow()
+
+    private val _captchaSoftMessage = MutableStateFlow<String?>(null)
+    val captchaSoftMessage: StateFlow<String?> = _captchaSoftMessage.asStateFlow()
+
     private val _errorMessage = MutableStateFlow<String?>(null)
     val errorMessage: StateFlow<String?> = _errorMessage.asStateFlow()
 
     val isCompatibilityModeActive: StateFlow<Boolean> = com.example.data.network.CullinanHttpClient.isCompatibilityModeActive
 
     private var loadPageJob: Job? = null
+    private var refreshCaptchaJob: Job? = null
+    private var captchaSolveJob: Job? = null
+    private var captchaImageVersion: Long = 0L
+    private var processedCaptchaVersion: Long = -1L
+    private var cachedCaptchaSolver: CaptchaSolver? = null
     private var isBiometricUnlockedForCurrentForm: Boolean = false
     private var suppressAutoFillAfterLogout: Boolean = false
 
@@ -99,7 +122,7 @@ class AuthViewModel(
         AppLogger.logDebug(
             "AuthViewModel",
             "Init",
-            "AuthViewModel initialized (rememberMe=${_rememberMe.value}, encryptionAvailable=${_isEncryptionAvailable.value}, biometricRequired=${_requiresBiometricUnlock.value}, failClosedUnavailable=${_biometricUnavailableWhileLocked.value})"
+            "AuthViewModel initialized (rememberMe=${_rememberMe.value}, encryptionAvailable=${_isEncryptionAvailable.value}, biometricRequired=${_requiresBiometricUnlock.value}, failClosedUnavailable=${_biometricUnavailableWhileLocked.value}, autoCaptchaEnabled=${_isAutoCaptchaEnabled.value})"
         )
         loadLoginPage()
     }
@@ -113,6 +136,7 @@ class AuthViewModel(
     }
 
     fun syncCredentialState(initialLoad: Boolean = false) {
+        syncAutoCaptchaPreferenceState()
         val encryptionOk = userPrefs.isEncryptionAvailable
         _isEncryptionAvailable.value = encryptionOk
         if (!encryptionOk) {
@@ -330,9 +354,16 @@ class AuthViewModel(
     }
 
     fun onCaptchaChange(newVal: String) {
-        // Enforce max 4 digits
+        // Enforce max 4 digits and treat manual edits as user intent
         val digitsOnly = newVal.filter { it.isDigit() }.take(4)
+        if (digitsOnly.isNotEmpty()) {
+            captchaSolveJob?.cancel()
+            captchaSolveJob = null
+            _isSolvingCaptcha.value = false
+        }
         _captchaInput.value = digitsOnly
+        _isCaptchaAutoFilled.value = false
+        _captchaSoftMessage.value = null
         _errorMessage.value = null
     }
 
@@ -363,6 +394,9 @@ class AuthViewModel(
 
     fun loadLoginPage() {
         loadPageJob?.cancel()
+        refreshCaptchaJob?.cancel()
+        cancelCaptchaSolveAndClearStatus(clearSoftMessage = true)
+        captchaImageVersion++
         AppLogger.logInfo("AuthViewModel", "LoadLoginPage", "Loading initial Login.aspx state and captcha")
         loadPageJob = viewModelScope.launch {
             _isLoading.value = true
@@ -370,6 +404,14 @@ class AuthViewModel(
             val result = authRepository.fetchLoginPage()
             result.onSuccess { state ->
                 _pageState.value = state
+                _captchaInput.value = ""
+                _isCaptchaAutoFilled.value = false
+                _captchaSoftMessage.value = null
+                val imageBytes = state.captchaBytes
+                if (imageBytes != null && imageBytes.isNotEmpty()) {
+                    captchaImageVersion++
+                    maybeSolveCaptcha(imageBytes, captchaImageVersion)
+                }
                 AppLogger.logInfo(
                     "AuthViewModel",
                     "LoadLoginPageSuccess",
@@ -385,25 +427,37 @@ class AuthViewModel(
     }
 
     fun refreshCaptcha() {
+        refreshCaptchaJob?.cancel()
+        cancelCaptchaSolveAndClearStatus(clearSoftMessage = true)
+        captchaImageVersion++
         AppLogger.logInfo("AuthViewModel", "RefreshCaptcha", "Refreshing captcha image")
-        viewModelScope.launch {
+        refreshCaptchaJob = viewModelScope.launch {
             _isCaptchaRefreshing.value = true
-            val result = authRepository.refreshCaptcha()
-            result.onSuccess { bytes ->
-                _pageState.value = _pageState.value.copy(captchaBytes = bytes)
-                _captchaInput.value = ""
-                AppLogger.logDebug("AuthViewModel", "RefreshCaptchaSuccess", "Captcha refreshed (${bytes.size} bytes)")
-            }.onFailure { error ->
-                _errorMessage.value = error.message
-                AppLogger.logWarn(
-                    component = "AuthViewModel",
-                    operation = "RefreshCaptchaFailed",
-                    message = "Captcha refresh failed: ${error.message}",
-                    throwable = error,
-                    errorCategory = "CAPTCHA_REFRESH_FAILED"
-                )
+            try {
+                val result = authRepository.refreshCaptcha()
+                result.onSuccess { bytes ->
+                    _pageState.value = _pageState.value.copy(captchaBytes = bytes)
+                    _captchaInput.value = ""
+                    _isCaptchaAutoFilled.value = false
+                    _captchaSoftMessage.value = null
+                    captchaImageVersion++
+                    AppLogger.logDebug("AuthViewModel", "RefreshCaptchaSuccess", "Captcha refreshed (${bytes.size} bytes)")
+                    if (bytes.isNotEmpty()) {
+                        maybeSolveCaptcha(bytes, captchaImageVersion)
+                    }
+                }.onFailure { error ->
+                    _errorMessage.value = error.message
+                    AppLogger.logWarn(
+                        component = "AuthViewModel",
+                        operation = "RefreshCaptchaFailed",
+                        message = "Captcha refresh failed: ${error.message}",
+                        throwable = error,
+                        errorCategory = "CAPTCHA_REFRESH_FAILED"
+                    )
+                }
+            } finally {
+                _isCaptchaRefreshing.value = false
             }
-            _isCaptchaRefreshing.value = false
         }
     }
 
@@ -429,6 +483,7 @@ class AuthViewModel(
         }
 
         AppLogger.logInfo("AuthViewModel", "LoginSubmitted", "Submitting login form (rememberMe=${_rememberMe.value}, captchaLen=${captcha.length})")
+        cancelCaptchaSolveAndClearStatus(clearSoftMessage = true)
         viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
@@ -480,6 +535,8 @@ class AuthViewModel(
     }
 
     fun onLogout() {
+        cancelCaptchaSolveAndClearStatus(clearSoftMessage = true)
+        captchaImageVersion++
         _captchaInput.value = ""
         _errorMessage.value = null
         // Always clear transient in-memory credentials and password visibility on logout
@@ -513,5 +570,100 @@ class AuthViewModel(
 
     fun clearError() {
         _errorMessage.value = null
+    }
+
+    private fun syncAutoCaptchaPreferenceState() {
+        val enabled = userPrefs.isAutoCaptchaEnabled
+        val previouslyEnabled = _isAutoCaptchaEnabled.value
+        _isAutoCaptchaEnabled.value = enabled
+        if (!enabled) {
+            captchaSolveJob?.cancel()
+            captchaSolveJob = null
+            _isSolvingCaptcha.value = false
+            if (previouslyEnabled) {
+                _captchaSoftMessage.value = null
+            }
+            return
+        }
+        val currentBytes = _pageState.value.captchaBytes
+        if (currentBytes != null &&
+            currentBytes.isNotEmpty() &&
+            _captchaInput.value.isEmpty() &&
+            processedCaptchaVersion != captchaImageVersion &&
+            captchaSolveJob?.isActive != true
+        ) {
+            maybeSolveCaptcha(currentBytes, captchaImageVersion)
+        }
+    }
+
+    private fun cancelCaptchaSolveAndClearStatus(clearSoftMessage: Boolean) {
+        captchaSolveJob?.cancel()
+        captchaSolveJob = null
+        _isSolvingCaptcha.value = false
+        _isCaptchaAutoFilled.value = false
+        if (clearSoftMessage) {
+            _captchaSoftMessage.value = null
+        }
+    }
+
+    private fun getOrCreateCaptchaSolver(): CaptchaSolver {
+        return cachedCaptchaSolver ?: captchaSolverFactory().also { cachedCaptchaSolver = it }
+    }
+
+    private fun maybeSolveCaptcha(imageBytes: ByteArray, version: Long) {
+        val enabled = userPrefs.isAutoCaptchaEnabled
+        _isAutoCaptchaEnabled.value = enabled
+        if (!enabled || imageBytes.isEmpty()) {
+            return
+        }
+        if (processedCaptchaVersion == version) {
+            return
+        }
+        processedCaptchaVersion = version
+
+        captchaSolveJob?.cancel()
+        captchaSolveJob = viewModelScope.launch {
+            _isSolvingCaptcha.value = true
+            try {
+                val result = getOrCreateCaptchaSolver().solve(imageBytes)
+                if (!isActive || version != captchaImageVersion) {
+                    return@launch
+                }
+                when (result) {
+                    is CaptchaResult.Success -> {
+                        val validDigits = result.digits.filter { it.isDigit() }.take(4)
+                        if (_captchaInput.value.isEmpty() && validDigits.length == 4) {
+                            _captchaInput.value = validDigits
+                            _isCaptchaAutoFilled.value = true
+                            _captchaSoftMessage.value = null
+                        }
+                    }
+                    is CaptchaResult.NotConfident,
+                    is CaptchaResult.Error -> {
+                        _isCaptchaAutoFilled.value = false
+                        if (_captchaInput.value.isEmpty()) {
+                            _captchaSoftMessage.value = CAPTCHA_SOLVE_FAILED_MESSAGE
+                        }
+                    }
+                }
+            } catch (ce: CancellationException) {
+                throw ce
+            } finally {
+                if (version == captchaImageVersion) {
+                    _isSolvingCaptcha.value = false
+                }
+            }
+        }
+    }
+
+    override fun onCleared() {
+        loadPageJob?.cancel()
+        refreshCaptchaJob?.cancel()
+        captchaSolveJob?.cancel()
+        super.onCleared()
+    }
+
+    companion object {
+        internal const val CAPTCHA_SOLVE_FAILED_MESSAGE = "تشخیص ممکن نشد، دستی وارد کنید"
     }
 }

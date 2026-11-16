@@ -56,6 +56,7 @@ import com.example.ui.components.LogSharePreviewDialog
 import com.example.ui.components.PersianRtlLayout
 import com.example.ui.components.shareDiagnosticZip
 import com.example.ui.screens.settings.AboutVersionSection
+import com.example.ui.screens.settings.AutoCaptchaSettingsSection
 import com.example.ui.screens.settings.DeveloperToolsSection
 import com.example.ui.screens.settings.NetworkStatusSection
 import com.example.ui.screens.settings.SecurityBiometricSection
@@ -79,6 +80,7 @@ fun SettingsScreen(
     var isDevUnlocked by remember { mutableStateOf(userPrefs.isDeveloperModeUnlocked) }
     var isEncryptionAvailable by remember { mutableStateOf(userPrefs.isEncryptionAvailable) }
     var isBiometricEnabled by remember { mutableStateOf(userPrefs.isBiometricLockEnabled) }
+    var isAutoCaptchaEnabled by remember { mutableStateOf(userPrefs.isAutoCaptchaEnabled) }
     var canUseBiometric by remember { mutableStateOf(BiometricHelper.canAuthenticate(context)) }
     var tapCounter by remember { mutableIntStateOf(0) }
     var showLogsDialog by remember { mutableStateOf(false) }
@@ -89,6 +91,7 @@ fun SettingsScreen(
             if (event == Lifecycle.Event.ON_RESUME) {
                 isEncryptionAvailable = userPrefs.isEncryptionAvailable
                 isBiometricEnabled = userPrefs.isBiometricLockEnabled
+                isAutoCaptchaEnabled = userPrefs.isAutoCaptchaEnabled
                 canUseBiometric = BiometricHelper.canAuthenticate(context)
             }
         }
@@ -191,7 +194,13 @@ fun SettingsScreen(
             }
         },
         onCheckForUpdates = onCheckForUpdates,
-        modifier = modifier
+        modifier = modifier,
+        isAutoCaptchaEnabled = isAutoCaptchaEnabled,
+        onToggleAutoCaptcha = { enable ->
+            userPrefs.isAutoCaptchaEnabled = enable
+            isAutoCaptchaEnabled = enable
+            onSecuritySettingsChanged?.invoke()
+        }
     )
 
     // Logs Dialog
@@ -238,7 +247,9 @@ internal fun SettingsScreenContent(
     onExitDeveloperMode: () -> Unit,
     onVersionClick: () -> Unit,
     onCheckForUpdates: (() -> Unit)?,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    isAutoCaptchaEnabled: Boolean = false,
+    onToggleAutoCaptcha: (Boolean) -> Unit = {}
 ) {
     PersianRtlLayout {
         Scaffold(
@@ -293,6 +304,13 @@ internal fun SettingsScreenContent(
                     onToggleBiometric = onToggleBiometric,
                     onOpenDeviceSecuritySettings = onOpenDeviceSecuritySettings,
                     onRecoveryWipeAndDisableLock = onRecoveryWipeAndDisableLock
+                )
+
+                Spacer(modifier = Modifier.height(20.dp))
+
+                AutoCaptchaSettingsSection(
+                    isAutoCaptchaEnabled = isAutoCaptchaEnabled,
+                    onToggleAutoCaptcha = onToggleAutoCaptcha
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))
