@@ -4,14 +4,21 @@ import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
+import androidx.compose.ui.test.hasTestTag
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.test.core.app.ApplicationProvider
+import androidx.compose.ui.test.performScrollTo
+import androidx.compose.ui.test.performScrollToNode
+import androidx.compose.ui.test.performTextReplacement
+import com.example.data.captcha.lab.CaptchaBenchmarkTargetStatus
 import com.example.data.captcha.lab.CaptchaLabController
 import com.example.data.captcha.lab.CaptchaLabOutcomeCategory
+import com.example.data.captcha.lab.CaptchaStageBenchmarkResult
 import com.example.data.captcha.lab.CaptchaStageKind
+import com.example.data.captcha.lab.CaptchaStageOcrTargetResult
 import com.example.data.captcha.lab.CaptchaStageStatus
 import com.example.data.captcha.lab.CapturedAttemptPayload
 import com.example.data.captcha.lab.CapturedCaptchaSession
@@ -160,7 +167,9 @@ class CaptchaLabComposeTest {
             .assertIsOn()
         assertTrue(CaptchaLabController.isArchivingEnabled())
 
-        // Record card is displayed; open Detail
+        // Record card is displayed; scroll list to card and open Detail
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_record_test_captcha_ui_1"))
         composeRule.onNodeWithTag("captcha_lab_record_test_captcha_ui_1")
             .assertIsDisplayed()
             .performClick()
@@ -168,6 +177,7 @@ class CaptchaLabComposeTest {
         // Verify OCR text & open Side-by-Side Pixel Comparison
         composeRule.onNodeWithText("4829", substring = true).assertIsDisplayed()
         composeRule.onNodeWithTag("captcha_detail_open_compare_button")
+            .performScrollTo()
             .assertIsDisplayed()
             .performClick()
 
@@ -181,5 +191,152 @@ class CaptchaLabComposeTest {
 
         composeRule.waitForIdle()
         assertTrue(repo.records.value.isEmpty())
+    }
+
+    @Test
+    fun stageBenchmarkUi_rendersLeaderboardBatchScopeDialogAndDetailGroundTruthInput() {
+        val repo = CaptchaLabController.getRepository(context)
+        val w = 24
+        val h = 12
+        val snap = DecodedArgbSnapshot(w, h, IntArray(w * h) { -1 })
+        val gray = GrayscaleImage(w, h, IntArray(w * h) { 120 })
+        val stages = CaptchaStageKind.entries.map { kind ->
+            if (kind == CaptchaStageKind.DECODED) {
+                CapturedStageBuffer(kind, CaptchaStageStatus.COMPLETED, w, h, argbSnapshot = snap)
+            } else {
+                CapturedStageBuffer(kind, CaptchaStageStatus.COMPLETED, w, h, grayscaleImage = gray)
+            }
+        }
+        val dummyGif = byteArrayOf(0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 24, 0, 12, 0, 0, 0, 0, 0x3B)
+
+        runBlocking {
+            val saved = repo.saveSessionNow(
+                CapturedCaptchaSession(
+                    captchaId = "bench_ui_cap_1",
+                    capturedAtEpochMs = 1_700_000_500_000L,
+                    rawBytes = dummyGif,
+                    rawInspection = GifFormatInspector.inspect(dummyGif),
+                    decodedFrameIndex = 0,
+                    decodeStatus = "SUCCESS",
+                    rawWidth = w,
+                    rawHeight = h,
+                    outcomeCategory = CaptchaLabOutcomeCategory.NO_TEXT_DETECTED,
+                    finalStatus = "NO_TEXT_DETECTED",
+                    finalDigits = null,
+                    failureReason = "NO_TEXT_DETECTED",
+                    lastRejectionCode = "NO_TEXT_DETECTED",
+                    exceptionType = null,
+                    mlKitErrorCode = null,
+                    totalDurationMs = 28L,
+                    attempts = listOf(
+                        CapturedAttemptPayload(
+                            attemptNumber = 1,
+                            routeType = "PRIMARY",
+                            preprocessConfig = PreprocessConfig(),
+                            decodeStatus = "SUCCESS",
+                            stages = stages,
+                            mlKitInputWidth = w,
+                            mlKitInputHeight = h,
+                            rawOcrFullText = "",
+                            elements = emptyList(),
+                            elementCount = 0,
+                            normalizedDigits = null,
+                            validationPassed = false,
+                            rejectionCode = "NO_TEXT_DETECTED",
+                            failureReason = "NO_TEXT_DETECTED"
+                        )
+                    )
+                )
+            )!!
+
+            repo.updateStageBenchmark(
+                saved.captchaId,
+                CaptchaStageBenchmarkResult(
+                    ranAtEpochMs = 1_700_000_501_000L,
+                    ranAtUtcIso = "2023-11-14T22:21:41.000Z",
+                    attemptNumber = 1,
+                    bestTargetKey = CaptchaStageKind.DENOISED.name,
+                    totalDurationMs = 42L,
+                    targets = listOf(
+                        CaptchaStageOcrTargetResult(
+                            targetKey = "RAW",
+                            targetTitleFa = "تصویر خام سرور (Raw)",
+                            status = CaptchaBenchmarkTargetStatus.COMPLETED,
+                            width = w,
+                            height = h,
+                            rawOcrFullText = "",
+                            elements = emptyList(),
+                            elementCount = 0,
+                            normalizedDigits = null,
+                            validationPassed = false,
+                            rejectionCode = "NO_TEXT_DETECTED",
+                            averageConfidence = null,
+                            ocrDurationMs = 5L
+                        ),
+                        CaptchaStageOcrTargetResult(
+                            targetKey = CaptchaStageKind.DENOISED.name,
+                            targetTitleFa = CaptchaStageKind.DENOISED.titleFa,
+                            status = CaptchaBenchmarkTargetStatus.COMPLETED,
+                            width = w,
+                            height = h,
+                            rawOcrFullText = "4829",
+                            elements = listOf(com.example.data.captcha.lab.CaptchaLabElementRecord("4829", 0.91f)),
+                            elementCount = 1,
+                            normalizedDigits = "4829",
+                            validationPassed = true,
+                            averageConfidence = 0.91f,
+                            ocrDurationMs = 6L
+                        )
+                    )
+                )
+            )
+        }
+
+        composeRule.setContent {
+            CullinanTheme {
+                CaptchaLabScreen(onDismiss = {})
+            }
+        }
+
+        // Leaderboard and Best Stage banner + Batch OCR trigger + per-card OCR button
+        composeRule.onNodeWithTag("stage_compatibility_leaderboard_card").assertIsDisplayed()
+        composeRule.onNodeWithTag("stage_leaderboard_best_banner").assertIsDisplayed()
+        composeRule.onNodeWithTag("stage_leaderboard_toggle_expand_button").performClick()
+        composeRule.onNodeWithTag("stage_leaderboard_row_DENOISED").assertIsDisplayed()
+        composeRule.onNodeWithTag("stage_leaderboard_toggle_expand_button").performClick()
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_batch_ocr_button"))
+        composeRule.onNodeWithTag("captcha_lab_batch_ocr_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_record_bench_ui_cap_1"))
+        composeRule.onNodeWithTag("captcha_lab_run_ocr_bench_ui_cap_1").assertIsDisplayed()
+
+        // Selecting FAILED filter triggers batch scope dialog
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_filter_FAILED"))
+        composeRule.onNodeWithTag("captcha_lab_filter_FAILED").performScrollTo().performClick()
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_batch_ocr_button"))
+        composeRule.onNodeWithTag("captcha_lab_batch_ocr_button").performClick()
+        composeRule.onNodeWithTag("captcha_lab_batch_filtered_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("captcha_lab_batch_all_button").assertIsDisplayed()
+        composeRule.onNodeWithText("انصراف").performClick()
+
+        // Open detail view -> verify benchmark card, targets & ground-truth input
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_record_bench_ui_cap_1"))
+        composeRule.onNodeWithTag("captcha_lab_record_bench_ui_cap_1").performClick()
+
+        composeRule.onNodeWithTag("captcha_detail_list")
+            .performScrollToNode(hasTestTag("captcha_detail_benchmark_card"))
+        composeRule.onNodeWithTag("captcha_detail_run_stage_ocr_button").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("captcha_detail_expected_digits_input").performScrollTo().performTextReplacement("4829")
+        composeRule.onNodeWithTag("captcha_detail_save_expected_digits_button").performScrollTo().performClick()
+        composeRule.waitForIdle()
+
+        assertTrue(repo.records.value.first().expectedDigits == "4829")
+        composeRule.onNodeWithTag("stage_benchmark_target_RAW").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("stage_benchmark_target_DENOISED").performScrollTo().assertIsDisplayed()
     }
 }

@@ -1,19 +1,22 @@
 package com.example
 
+import com.example.data.captcha.lab.CaptchaBenchmarkTargetStatus
 import com.example.data.captcha.lab.CaptchaLabConstants
 import com.example.data.captcha.lab.CaptchaLabFilter
 import com.example.data.captcha.lab.CaptchaLabJson
 import com.example.data.captcha.lab.CaptchaLabObserver
 import com.example.data.captcha.lab.CaptchaLabOutcomeCategory
-import com.example.data.captcha.lab.CaptchaLabRecord
 import com.example.data.captcha.lab.CaptchaLabRepository
 import com.example.data.captcha.lab.CaptchaLabSort
 import com.example.data.captcha.lab.CaptchaLabZipExporter
+import com.example.data.captcha.lab.CaptchaStageBenchmarkEngine
 import com.example.data.captcha.lab.CaptchaStageKind
 import com.example.data.captcha.lab.CaptchaStageStatus
+import com.example.data.captcha.lab.CapturedAttemptPayload
 import com.example.data.captcha.lab.CapturedCaptchaSession
 import com.example.data.captcha.lab.CapturedStageBuffer
 import com.example.data.captcha.lab.DecodedArgbSnapshot
+import com.example.data.captcha.lab.DecodedBenchmarkFrame
 import com.example.data.captcha.lab.GifFormatInspector
 import com.example.data.captcha.lab.TracedPreprocessResult
 import com.example.data.captcha.preprocess.CaptchaPreprocessPipeline
@@ -425,5 +428,400 @@ class CaptchaLabCoreUnitTest {
         repo.clearAll()
         assertEquals(0, repo.records.value.size)
         assertFalse(repo.indexFile.exists())
+    }
+
+    @Test
+    fun stageBenchmarkEngine_evaluatesRawAndAll8Stages_handlesSkippedFailureAndReleasesFrames() = runTest {
+        val rootDir = tempFolder.newFolder("bench_single_test")
+        val repo = CaptchaLabRepository(
+            rootDir = rootDir,
+            appVersionName = "1.0.0",
+            appVersionCode = 1,
+            buildType = "debug",
+            ioDispatcher = Dispatchers.Unconfined,
+            pngEncoder = { _, _, _, dest ->
+                dest.parentFile?.mkdirs()
+                dest.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+                true
+            }
+        )
+
+        val stages = CaptchaStageKind.entries.map { kind ->
+            if (kind == CaptchaStageKind.INVERTED) {
+                CapturedStageBuffer(
+                    stage = kind,
+                    status = CaptchaStageStatus.SKIPPED,
+                    note = "Invert disabled in config"
+                )
+            } else {
+                CapturedStageBuffer(
+                    stage = kind,
+                    status = CaptchaStageStatus.COMPLETED,
+                    width = 36,
+                    height = 18,
+                    grayscaleImage = GrayscaleImage(36, 18, IntArray(36 * 18) { 128 })
+                )
+            }
+        }
+
+        val gifBytes = buildSyntheticGif(1)
+        val saved = repo.saveSessionNow(
+            CapturedCaptchaSession(
+                captchaId = "bench_cap_1",
+                capturedAtEpochMs = 1_700_000_100_000L,
+                rawBytes = gifBytes,
+                rawInspection = GifFormatInspector.inspect(gifBytes),
+                decodedFrameIndex = 0,
+                decodeStatus = "SUCCESS",
+                rawWidth = 120,
+                rawHeight = 40,
+                outcomeCategory = CaptchaLabOutcomeCategory.NO_TEXT_DETECTED,
+                finalStatus = "NO_TEXT_DETECTED",
+                finalDigits = null,
+                failureReason = "NO_TEXT_DETECTED",
+                lastRejectionCode = "NO_TEXT_DETECTED",
+                exceptionType = null,
+                mlKitErrorCode = null,
+                totalDurationMs = 20L,
+                attempts = listOf(
+                    CapturedAttemptPayload(
+                        attemptNumber = 1,
+                        routeType = "PRIMARY",
+                        preprocessConfig = PreprocessConfig(invertOutput = false),
+                        decodeStatus = "SUCCESS",
+                        stages = stages,
+                        mlKitInputWidth = 36,
+                        mlKitInputHeight = 18,
+                        rawOcrFullText = "",
+                        elements = emptyList(),
+                        elementCount = 0,
+                        normalizedDigits = null,
+                        validationPassed = false,
+                        rejectionCode = "NO_TEXT_DETECTED",
+                        failureReason = "NO_TEXT_DETECTED"
+                    )
+                )
+            )
+        )!!
+
+        class TaggedFrame(val tag: String) : CaptchaFrame {
+            var released = false
+            override fun release() {
+                released = true
+            }
+        }
+
+        val allocatedFrames = mutableListOf<TaggedFrame>()
+        val engine = CaptchaStageBenchmarkEngine(
+            dispatcher = Dispatchers.Unconfined,
+            sessionFactory = {
+                object : OcrSession {
+                    override suspend fun recognize(frame: CaptchaFrame): OcrOutput {
+                        return when ((frame as TaggedFrame).tag) {
+                            "raw.gif" -> OcrOutput("", emptyList())
+                            "${CaptchaStageKind.DENOISED.fileBaseName}.png" -> error("Simulated OCR crash")
+                            "${CaptchaStageKind.THRESHOLDED.fileBaseName}.png" ->
+                                OcrOutput("1234", listOf(OcrElement("1234", 0.72f)))
+                            "${CaptchaStageKind.FINAL_PADDED.fileBaseName}.png" ->
+                                OcrOutput("1234", listOf(OcrElement("1234", 0.96f)))
+                            else -> OcrOutput("12", listOf(OcrElement("12", 0.85f)))
+                        }
+                    }
+                    override fun close() = Unit
+                }
+            },
+            fileFrameDecoder = { file ->
+                if (file.name == "${CaptchaStageKind.DECODED.fileBaseName}.png") {
+                    null // Simulate decode failure on DECODED stage
+                } else {
+                    val f = TaggedFrame(file.name).also { allocatedFrames.add(it) }
+                    DecodedBenchmarkFrame(frame = f, width = 36, height = 18)
+                }
+            }
+        )
+
+        val result = engine.benchmarkRecord(repo, saved)
+        assertEquals(9, result.targets.size)
+        assertEquals(CaptchaLabConstants.TARGET_KEY_RAW, result.targets.first().targetKey)
+        assertEquals(CaptchaBenchmarkTargetStatus.COMPLETED, result.targets.first().status)
+        assertNull(result.targets.first().averageConfidence)
+        assertEquals("NO_TEXT_DETECTED", result.targets.first().rejectionCode)
+
+        val decodedTarget = result.targets.first { it.targetKey == CaptchaStageKind.DECODED.name }
+        assertEquals(CaptchaBenchmarkTargetStatus.FAILED, decodedTarget.status)
+
+        val invertedTarget = result.targets.first { it.targetKey == CaptchaStageKind.INVERTED.name }
+        assertEquals(CaptchaBenchmarkTargetStatus.SKIPPED, invertedTarget.status)
+
+        val denoisedTarget = result.targets.first { it.targetKey == CaptchaStageKind.DENOISED.name }
+        assertEquals(CaptchaBenchmarkTargetStatus.FAILED, denoisedTarget.status)
+
+        assertEquals(CaptchaStageKind.FINAL_PADDED.name, result.bestTargetKey)
+        assertTrue(allocatedFrames.isNotEmpty())
+        assertTrue(allocatedFrames.all { it.released })
+    }
+
+    @Test
+    fun stageBenchmarkEngine_batchSharesSession_andPreservesPartialResultsOnCancel() = runTest {
+        val rootDir = tempFolder.newFolder("bench_batch_test")
+        val repo = CaptchaLabRepository(
+            rootDir = rootDir,
+            appVersionName = "1.0.0",
+            appVersionCode = 1,
+            buildType = "release",
+            ioDispatcher = Dispatchers.Unconfined,
+            pngEncoder = { _, _, _, dest ->
+                dest.parentFile?.mkdirs()
+                dest.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+                true
+            }
+        )
+
+        val gifBytes = buildSyntheticGif(1)
+        val traced = fakeTracedSuccess()
+        val inserted = (1..3).map { idx ->
+            repo.saveSessionNow(
+                CapturedCaptchaSession(
+                    captchaId = "batch_cap_$idx",
+                    capturedAtEpochMs = 1_700_000_200_000L + idx * 1000L,
+                    rawBytes = gifBytes,
+                    rawInspection = GifFormatInspector.inspect(gifBytes),
+                    decodedFrameIndex = 0,
+                    decodeStatus = "SUCCESS",
+                    rawWidth = 20,
+                    rawHeight = 10,
+                    outcomeCategory = CaptchaLabOutcomeCategory.SUCCESS_PRIMARY,
+                    finalStatus = "SUCCESS_PRIMARY",
+                    finalDigits = "4829",
+                    failureReason = null,
+                    lastRejectionCode = null,
+                    exceptionType = null,
+                    mlKitErrorCode = null,
+                    totalDurationMs = 15L,
+                    attempts = listOf(
+                        CapturedAttemptPayload(
+                            attemptNumber = 1,
+                            routeType = "PRIMARY",
+                            preprocessConfig = PreprocessConfig(),
+                            decodeStatus = "SUCCESS",
+                            stages = traced.stages,
+                            mlKitInputWidth = 20,
+                            mlKitInputHeight = 10,
+                            rawOcrFullText = "4829",
+                            elements = listOf(OcrElement("4829", 0.9f)),
+                            elementCount = 1,
+                            normalizedDigits = "4829",
+                            validationPassed = true,
+                            rejectionCode = null,
+                            failureReason = null
+                        )
+                    )
+                )
+            )!!
+        }
+
+        var factoryCalls = 0
+        var sessionClosed = false
+        val engine = CaptchaStageBenchmarkEngine(
+            dispatcher = Dispatchers.Unconfined,
+            sessionFactory = {
+                factoryCalls++
+                object : OcrSession {
+                    override suspend fun recognize(frame: CaptchaFrame) =
+                        OcrOutput("4829", listOf(OcrElement("4829", 0.88f)))
+                    override fun close() {
+                        sessionClosed = true
+                    }
+                }
+            },
+            fileFrameDecoder = { DecodedBenchmarkFrame(FakeFrame(), 20, 10) }
+        )
+
+        val progressUpdates = mutableListOf<Int>()
+        lateinit var batchJob: kotlinx.coroutines.Job
+        batchJob = launch(Dispatchers.Unconfined, start = kotlinx.coroutines.CoroutineStart.LAZY) {
+            engine.benchmarkBatch(repo, inserted) { done, _, currentId, _ ->
+                progressUpdates.add(done)
+                if (done == 2 && currentId == "batch_cap_3") {
+                    batchJob.cancel()
+                }
+            }
+        }
+        batchJob.start()
+        batchJob.join()
+
+        assertEquals(1, factoryCalls)
+        assertTrue(sessionClosed)
+        assertTrue(progressUpdates.contains(2))
+        val after = repo.records.value.associateBy { it.captchaId }
+        assertNotNull(after["batch_cap_1"]?.stageBenchmark)
+        assertNotNull(after["batch_cap_2"]?.stageBenchmark)
+        assertNull(after["batch_cap_3"]?.stageBenchmark)
+    }
+
+    @Test
+    fun compatibilityRanking_usesAutoScoreAndExpectedDigits_andExportsInJsonAndZip() = runTest {
+        val rootDir = tempFolder.newFolder("bench_compat_test")
+        val repo = CaptchaLabRepository(
+            rootDir = rootDir,
+            appVersionName = "1.0.0",
+            appVersionCode = 1,
+            buildType = "release",
+            ioDispatcher = Dispatchers.Unconfined,
+            pngEncoder = { _, _, _, dest ->
+                dest.parentFile?.mkdirs()
+                dest.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+                true
+            }
+        )
+
+        val gifBytes = buildSyntheticGif(1)
+        val traced = fakeTracedSuccess()
+        val cap1 = repo.saveSessionNow(
+            CapturedCaptchaSession(
+                captchaId = "compat_1",
+                capturedAtEpochMs = 1_700_000_300_000L,
+                rawBytes = gifBytes,
+                rawInspection = GifFormatInspector.inspect(gifBytes),
+                decodedFrameIndex = 0,
+                decodeStatus = "SUCCESS",
+                rawWidth = 20,
+                rawHeight = 10,
+                outcomeCategory = CaptchaLabOutcomeCategory.NO_TEXT_DETECTED,
+                finalStatus = "NO_TEXT_DETECTED",
+                finalDigits = null,
+                failureReason = "NO_TEXT_DETECTED",
+                lastRejectionCode = "NO_TEXT_DETECTED",
+                exceptionType = null,
+                mlKitErrorCode = null,
+                totalDurationMs = 12L,
+                attempts = listOf(
+                    CapturedAttemptPayload(
+                        attemptNumber = 1,
+                        routeType = "PRIMARY",
+                        preprocessConfig = PreprocessConfig(),
+                        decodeStatus = "SUCCESS",
+                        stages = traced.stages,
+                        mlKitInputWidth = 20,
+                        mlKitInputHeight = 10,
+                        rawOcrFullText = "",
+                        elements = emptyList(),
+                        elementCount = 0,
+                        normalizedDigits = null,
+                        validationPassed = false,
+                        rejectionCode = "NO_TEXT_DETECTED",
+                        failureReason = "NO_TEXT_DETECTED"
+                    )
+                )
+            )
+        )!!
+        val cap2 = repo.saveSessionNow(
+            CapturedCaptchaSession(
+                captchaId = "compat_2",
+                capturedAtEpochMs = 1_700_000_305_000L,
+                rawBytes = gifBytes,
+                rawInspection = GifFormatInspector.inspect(gifBytes),
+                decodedFrameIndex = 0,
+                decodeStatus = "SUCCESS",
+                rawWidth = 20,
+                rawHeight = 10,
+                outcomeCategory = CaptchaLabOutcomeCategory.NO_TEXT_DETECTED,
+                finalStatus = "NO_TEXT_DETECTED",
+                finalDigits = null,
+                failureReason = "NO_TEXT_DETECTED",
+                lastRejectionCode = "NO_TEXT_DETECTED",
+                exceptionType = null,
+                mlKitErrorCode = null,
+                totalDurationMs = 12L,
+                attempts = listOf(
+                    CapturedAttemptPayload(
+                        attemptNumber = 1,
+                        routeType = "PRIMARY",
+                        preprocessConfig = PreprocessConfig(),
+                        decodeStatus = "SUCCESS",
+                        stages = traced.stages,
+                        mlKitInputWidth = 20,
+                        mlKitInputHeight = 10,
+                        rawOcrFullText = "",
+                        elements = emptyList(),
+                        elementCount = 0,
+                        normalizedDigits = null,
+                        validationPassed = false,
+                        rejectionCode = "NO_TEXT_DETECTED",
+                        failureReason = "NO_TEXT_DETECTED"
+                    )
+                )
+            )
+        )!!
+
+        class TagFrame(val fileName: String) : CaptchaFrame {
+            override fun release() = Unit
+        }
+
+        // UPSCALED hallucinates 9999 with high confidence (0.98); DENOISED reads true digits (4829 / 1234) at 0.75
+        var currentCap = 1
+        val engine = CaptchaStageBenchmarkEngine(
+            dispatcher = Dispatchers.Unconfined,
+            sessionFactory = {
+                object : OcrSession {
+                    override suspend fun recognize(frame: CaptchaFrame): OcrOutput {
+                        return when ((frame as TagFrame).fileName) {
+                            "raw.gif" -> OcrOutput("", emptyList())
+                            "${CaptchaStageKind.UPSCALED.fileBaseName}.png" ->
+                                OcrOutput("9999", listOf(OcrElement("9999", 0.98f)))
+                            "${CaptchaStageKind.DENOISED.fileBaseName}.png" -> {
+                                val d = if (currentCap == 1) "4829" else "1234"
+                                OcrOutput(d, listOf(OcrElement(d, 0.75f)))
+                            }
+                            else -> OcrOutput("12", listOf(OcrElement("12", 0.50f)))
+                        }
+                    }
+                    override fun close() = Unit
+                }
+            },
+            fileFrameDecoder = { file -> DecodedBenchmarkFrame(TagFrame(file.name), 20, 10) }
+        )
+
+        currentCap = 1
+        repo.updateStageBenchmark(cap1.captchaId, engine.benchmarkRecord(repo, cap1))
+        currentCap = 2
+        repo.updateStageBenchmark(cap2.captchaId, engine.benchmarkRecord(repo, cap2))
+
+        // Auto ranking without manual ground truth favors UPSCALED due to higher confidence (0.98 > 0.75)
+        val autoSummary = CaptchaStageBenchmarkEngine.analyzeCompatibility(repo.records.value)
+        assertEquals(2, autoSummary.benchmarkedCaptchasCount)
+        assertEquals(0, autoSummary.labeledCaptchasCount)
+        assertEquals(CaptchaStageKind.UPSCALED.name, autoSummary.bestStageKey)
+
+        // Add manual ground truth labels ("4829" and "1234") -> exact match promotes DENOISED to #1
+        repo.updateExpectedDigits(cap1.captchaId, "۴۸۲۹")
+        repo.updateExpectedDigits(cap2.captchaId, "1234")
+
+        val labeledSummary = CaptchaStageBenchmarkEngine.analyzeCompatibility(repo.records.value)
+        assertEquals(2, labeledSummary.labeledCaptchasCount)
+        assertEquals(CaptchaStageKind.DENOISED.name, labeledSummary.bestStageKey)
+        val denoisedMetric = labeledSummary.metrics.first { it.targetKey == CaptchaStageKind.DENOISED.name }
+        assertEquals(100, denoisedMetric.exactMatchRatePercent)
+        val upscaledMetric = labeledSummary.metrics.first { it.targetKey == CaptchaStageKind.UPSCALED.name }
+        assertEquals(0, upscaledMetric.exactMatchRatePercent)
+
+        // Verify JSON & ZIP summary export includes stageBenchmark, expectedDigits & leaderboard
+        val roundTripped = CaptchaLabJson.recordFromJson(
+            JSONObject(File(File(repo.captchasDir, cap1.captchaId), "metadata.json").readText())
+        )
+        assertEquals("4829", roundTripped.expectedDigits)
+        assertEquals(CaptchaStageKind.DENOISED.name, roundTripped.stageBenchmark?.bestTargetKey)
+
+        val destZip = tempFolder.newFile("compat_export.zip")
+        assertTrue(CaptchaLabZipExporter.exportToZipFile(repo, repo.records.value, destZip))
+        ZipFile(destZip).use { zf ->
+            val summaryText = zf.getInputStream(zf.getEntry("summary.json")).bufferedReader().readText()
+            val summaryJson = JSONObject(summaryText)
+            assertEquals(2, summaryJson.getInt("schemaVersion"))
+            assertEquals(2, summaryJson.getInt("benchmarkedCaptchasCount"))
+            assertEquals(2, summaryJson.getInt("labeledCaptchasCount"))
+            assertEquals(CaptchaStageKind.DENOISED.name, summaryJson.getString("recommendedBestStageKey"))
+            assertEquals(9, summaryJson.getJSONArray("stageCompatibilityLeaderboard").length())
+        }
     }
 }

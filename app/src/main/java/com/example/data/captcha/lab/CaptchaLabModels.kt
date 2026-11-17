@@ -45,6 +45,12 @@ enum class CaptchaStageStatus(val labelFa: String) {
     NOT_RUN("اجرا نشد")
 }
 
+enum class CaptchaBenchmarkTargetStatus(val labelFa: String) {
+    COMPLETED("اجرا شد"),
+    SKIPPED("رد شد"),
+    FAILED("خطا")
+}
+
 data class GifInspectionInfo(
     val isGif: Boolean = false,
     val gifVersion: String? = null,
@@ -92,6 +98,77 @@ data class CaptchaLabAttemptRecord(
     val totalDurationMs: Long = 0L
 )
 
+/**
+ * نتیجه اجرای دستی OCR روی یکی از اهداف ۹گانه (تصویر خام + ۸ مرحله پیش‌پردازش).
+ */
+data class CaptchaStageOcrTargetResult(
+    val targetKey: String,
+    val targetTitleFa: String,
+    val status: CaptchaBenchmarkTargetStatus,
+    val width: Int? = null,
+    val height: Int? = null,
+    val rawOcrFullText: String? = null,
+    val elements: List<CaptchaLabElementRecord> = emptyList(),
+    val elementCount: Int? = null,
+    val normalizedDigits: String? = null,
+    val validationPassed: Boolean = false,
+    val rejectionCode: String? = null,
+    val matchesExpectedDigits: Boolean? = null,
+    val averageConfidence: Float? = null,
+    val ocrDurationMs: Long? = null,
+    val errorMessage: String? = null
+)
+
+/**
+ * نتیجه بنچمارک OCR تصویر خام + ۸ مرحله برای یک رکورد کپچا.
+ */
+data class CaptchaStageBenchmarkResult(
+    val ranAtEpochMs: Long,
+    val ranAtUtcIso: String,
+    val attemptNumber: Int,
+    val targets: List<CaptchaStageOcrTargetResult>,
+    val bestTargetKey: String? = null,
+    val totalDurationMs: Long = 0L
+)
+
+/**
+ * شاخص سازگاری و عملکرد تجمیعی یک مرحله برای مدل ML Kit در کل رکوردهای بنچمارک‌شده.
+ */
+data class StageCompatibilityMetric(
+    val rank: Int,
+    val targetKey: String,
+    val targetTitleFa: String,
+    val evaluatedCount: Int,
+    val valid4DigitCount: Int,
+    val valid4DigitRatePercent: Int,
+    val labeledEvaluatedCount: Int,
+    val exactMatchCount: Int,
+    val exactMatchRatePercent: Int?,
+    val averageConfidence: Float?,
+    val confidenceSampleCount: Int,
+    val noTextCount: Int,
+    val noTextRatePercent: Int,
+    val averageOcrDurationMs: Long,
+    val compatibilityScore: Double,
+    val isRecommendedBest: Boolean
+)
+
+data class StageCompatibilitySummary(
+    val benchmarkedCaptchasCount: Int = 0,
+    val labeledCaptchasCount: Int = 0,
+    val bestStageKey: String? = null,
+    val bestStageTitleFa: String? = null,
+    val metrics: List<StageCompatibilityMetric> = emptyList()
+)
+
+data class BatchBenchmarkProgressState(
+    val isRunning: Boolean = false,
+    val scopeLabel: String = "",
+    val completedCount: Int = 0,
+    val totalCount: Int = 0,
+    val currentCaptchaId: String? = null
+)
+
 data class CaptchaLabRecord(
     val captchaId: String,
     val capturedAtEpochMs: Long,
@@ -116,7 +193,9 @@ data class CaptchaLabRecord(
     val exceptionType: String? = null,
     val mlKitErrorCode: Int? = null,
     val totalDurationMs: Long,
-    val attempts: List<CaptchaLabAttemptRecord>
+    val attempts: List<CaptchaLabAttemptRecord>,
+    val expectedDigits: String? = null,
+    val stageBenchmark: CaptchaStageBenchmarkResult? = null
 )
 
 enum class CaptchaLabFilter(val labelFa: String) {
@@ -173,6 +252,8 @@ object CaptchaLabJson {
         put("exceptionType", record.exceptionType ?: JSONObject.NULL)
         put("mlKitErrorCode", record.mlKitErrorCode ?: JSONObject.NULL)
         put("totalDurationMs", record.totalDurationMs)
+        put("expectedDigits", record.expectedDigits ?: JSONObject.NULL)
+        put("stageBenchmark", record.stageBenchmark?.let(::stageBenchmarkToJson) ?: JSONObject.NULL)
         put("attempts", JSONArray().apply {
             record.attempts.forEach { put(attemptToJson(it)) }
         })
@@ -214,7 +295,9 @@ object CaptchaLabJson {
             exceptionType = obj.optNullableString("exceptionType"),
             mlKitErrorCode = obj.optNullableInt("mlKitErrorCode"),
             totalDurationMs = obj.optLong("totalDurationMs", 0L),
-            attempts = attempts
+            attempts = attempts,
+            expectedDigits = obj.optNullableString("expectedDigits"),
+            stageBenchmark = obj.optJSONObject("stageBenchmark")?.let(::stageBenchmarkFromJson)
         )
     }
 
@@ -224,9 +307,10 @@ object CaptchaLabJson {
         exportedAtUtcIso: String,
         appVersionName: String,
         appVersionCode: Int,
-        buildType: String
+        buildType: String,
+        compatibilitySummary: StageCompatibilitySummary? = null
     ): JSONObject = JSONObject().apply {
-        put("schemaVersion", 1)
+        put("schemaVersion", 2)
         put("exportedAtUtcIso", exportedAtUtcIso)
         put("appVersionName", appVersionName)
         put("appVersionCode", appVersionCode)
@@ -245,9 +329,123 @@ object CaptchaLabJson {
                 put(category.name, records.count { it.outcomeCategory == category })
             }
         })
+        compatibilitySummary?.let { comp ->
+            put("benchmarkedCaptchasCount", comp.benchmarkedCaptchasCount)
+            put("labeledCaptchasCount", comp.labeledCaptchasCount)
+            put("recommendedBestStageKey", comp.bestStageKey ?: JSONObject.NULL)
+            put("stageCompatibilityLeaderboard", JSONArray().apply {
+                comp.metrics.forEach { metric ->
+                    put(JSONObject().apply {
+                        put("rank", metric.rank)
+                        put("targetKey", metric.targetKey)
+                        put("targetTitleFa", metric.targetTitleFa)
+                        put("evaluatedCount", metric.evaluatedCount)
+                        put("valid4DigitCount", metric.valid4DigitCount)
+                        put("valid4DigitRatePercent", metric.valid4DigitRatePercent)
+                        put("labeledEvaluatedCount", metric.labeledEvaluatedCount)
+                        put("exactMatchCount", metric.exactMatchCount)
+                        put("exactMatchRatePercent", metric.exactMatchRatePercent ?: JSONObject.NULL)
+                        put("averageConfidence", metric.averageConfidence?.toDouble() ?: JSONObject.NULL)
+                        put("confidenceSampleCount", metric.confidenceSampleCount)
+                        put("noTextCount", metric.noTextCount)
+                        put("noTextRatePercent", metric.noTextRatePercent)
+                        put("averageOcrDurationMs", metric.averageOcrDurationMs)
+                        put("compatibilityScore", metric.compatibilityScore)
+                        put("isRecommendedBest", metric.isRecommendedBest)
+                    })
+                }
+            })
+        }
         put("captchaIds", JSONArray().apply {
             records.forEach { put(it.captchaId) }
         })
+    }
+
+    private fun stageBenchmarkToJson(bench: CaptchaStageBenchmarkResult): JSONObject = JSONObject().apply {
+        put("ranAtEpochMs", bench.ranAtEpochMs)
+        put("ranAtUtcIso", bench.ranAtUtcIso)
+        put("attemptNumber", bench.attemptNumber)
+        put("bestTargetKey", bench.bestTargetKey ?: JSONObject.NULL)
+        put("totalDurationMs", bench.totalDurationMs)
+        put("targets", JSONArray().apply {
+            bench.targets.forEach { target ->
+                put(JSONObject().apply {
+                    put("targetKey", target.targetKey)
+                    put("targetTitleFa", target.targetTitleFa)
+                    put("status", target.status.name)
+                    put("width", target.width ?: JSONObject.NULL)
+                    put("height", target.height ?: JSONObject.NULL)
+                    put("rawOcrFullText", target.rawOcrFullText ?: JSONObject.NULL)
+                    put("elements", JSONArray().apply {
+                        target.elements.forEach { elem ->
+                            put(JSONObject().apply {
+                                put("text", elem.text)
+                                put("confidence", elem.confidence?.toDouble() ?: JSONObject.NULL)
+                            })
+                        }
+                    })
+                    put("elementCount", target.elementCount ?: JSONObject.NULL)
+                    put("normalizedDigits", target.normalizedDigits ?: JSONObject.NULL)
+                    put("validationPassed", target.validationPassed)
+                    put("rejectionCode", target.rejectionCode ?: JSONObject.NULL)
+                    put("matchesExpectedDigits", target.matchesExpectedDigits ?: JSONObject.NULL)
+                    put("averageConfidence", target.averageConfidence?.toDouble() ?: JSONObject.NULL)
+                    put("ocrDurationMs", target.ocrDurationMs ?: JSONObject.NULL)
+                    put("errorMessage", target.errorMessage ?: JSONObject.NULL)
+                })
+            }
+        })
+    }
+
+    private fun stageBenchmarkFromJson(obj: JSONObject): CaptchaStageBenchmarkResult {
+        val targetsArr = obj.optJSONArray("targets") ?: JSONArray()
+        val targets = buildList {
+            for (i in 0 until targetsArr.length()) {
+                val tObj = targetsArr.optJSONObject(i) ?: continue
+                val statusRaw = tObj.optString("status", CaptchaBenchmarkTargetStatus.SKIPPED.name)
+                val status = runCatching { CaptchaBenchmarkTargetStatus.valueOf(statusRaw) }
+                    .getOrDefault(CaptchaBenchmarkTargetStatus.SKIPPED)
+                val elementsArr = tObj.optJSONArray("elements") ?: JSONArray()
+                val elements = buildList {
+                    for (j in 0 until elementsArr.length()) {
+                        val eObj = elementsArr.optJSONObject(j) ?: continue
+                        val conf = if (eObj.isNull("confidence")) null else eObj.optDouble("confidence").toFloat()
+                        add(CaptchaLabElementRecord(text = eObj.optString("text", ""), confidence = conf))
+                    }
+                }
+                add(
+                    CaptchaStageOcrTargetResult(
+                        targetKey = tObj.optString("targetKey", ""),
+                        targetTitleFa = tObj.optString("targetTitleFa", ""),
+                        status = status,
+                        width = tObj.optNullableInt("width"),
+                        height = tObj.optNullableInt("height"),
+                        rawOcrFullText = tObj.optNullableString("rawOcrFullText"),
+                        elements = elements,
+                        elementCount = tObj.optNullableInt("elementCount"),
+                        normalizedDigits = tObj.optNullableString("normalizedDigits"),
+                        validationPassed = tObj.optBoolean("validationPassed", false),
+                        rejectionCode = tObj.optNullableString("rejectionCode"),
+                        matchesExpectedDigits = tObj.optNullableBoolean("matchesExpectedDigits"),
+                        averageConfidence = if (tObj.isNull("averageConfidence") || !tObj.has("averageConfidence")) {
+                            null
+                        } else {
+                            tObj.optDouble("averageConfidence").toFloat()
+                        },
+                        ocrDurationMs = tObj.optNullableLong("ocrDurationMs"),
+                        errorMessage = tObj.optNullableString("errorMessage")
+                    )
+                )
+            }
+        }
+        return CaptchaStageBenchmarkResult(
+            ranAtEpochMs = obj.optLong("ranAtEpochMs", 0L),
+            ranAtUtcIso = obj.optString("ranAtUtcIso", ""),
+            attemptNumber = obj.optInt("attemptNumber", 1),
+            targets = targets,
+            bestTargetKey = obj.optNullableString("bestTargetKey"),
+            totalDurationMs = obj.optLong("totalDurationMs", 0L)
+        )
     }
 
     private fun gifInfoToJson(info: GifInspectionInfo): JSONObject = JSONObject().apply {
@@ -412,8 +610,12 @@ object CaptchaLabJson {
 
     private fun JSONObject.optNullableLong(key: String): Long? =
         if (isNull(key) || !has(key)) null else optLong(key)
+
+    private fun JSONObject.optNullableBoolean(key: String): Boolean? =
+        if (isNull(key) || !has(key)) null else optBoolean(key)
 }
 
 object CaptchaLabConstants {
     const val MAX_RETAINED_CAPTCHAS = 100
+    const val TARGET_KEY_RAW = "RAW"
 }

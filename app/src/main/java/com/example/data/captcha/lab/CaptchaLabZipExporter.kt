@@ -34,11 +34,12 @@ object CaptchaLabZipExporter {
             destZipFile.parentFile?.mkdirs()
             val tmpFile = File(destZipFile.parentFile, "${destZipFile.name}.tmp")
             val stats = CaptchaLabRepository.computeSummaryStats(records)
+            val compatibility = CaptchaStageBenchmarkEngine.analyzeCompatibility(records)
             val exportedUtc = CaptchaLabRepository.formatUtcIso(System.currentTimeMillis())
 
             ZipOutputStream(BufferedOutputStream(FileOutputStream(tmpFile))).use { zos ->
                 // 1. README.md
-                writeZipTextEntry(zos, "README.md", buildReadmeMarkdown(stats, exportedUtc, appVersionName, appVersionCode, buildType))
+                writeZipTextEntry(zos, "README.md", buildReadmeMarkdown(stats, compatibility, exportedUtc, appVersionName, appVersionCode, buildType))
 
                 // 2. summary.json
                 val summaryJson = CaptchaLabJson.buildSummaryJson(
@@ -47,7 +48,8 @@ object CaptchaLabZipExporter {
                     exportedAtUtcIso = exportedUtc,
                     appVersionName = appVersionName,
                     appVersionCode = appVersionCode,
-                    buildType = buildType
+                    buildType = buildType,
+                    compatibilitySummary = compatibility
                 )
                 writeZipTextEntry(zos, "summary.json", summaryJson.toString(2))
 
@@ -174,6 +176,7 @@ object CaptchaLabZipExporter {
 
     internal fun buildReadmeMarkdown(
         stats: CaptchaLabSummaryStats,
+        compatibility: StageCompatibilitySummary,
         exportedAtUtcIso: String,
         appVersionName: String,
         appVersionCode: Int,
@@ -184,8 +187,9 @@ object CaptchaLabZipExporter {
         |Exported at (UTC): $exportedAtUtcIso
         |App Version: $appVersionName (code $appVersionCode, buildType=$buildType)
         |Total Captchas: ${stats.totalCount} | Success: ${stats.successCount} (${stats.successRatePercent}%) | Failed: ${stats.failedCount} | NO_TEXT_DETECTED: ${stats.noTextDetectedCount}
+        |Benchmarked Captchas: ${compatibility.benchmarkedCaptchasCount} | Manually Labeled: ${compatibility.labeledCaptchasCount} | Recommended Best Stage: ${compatibility.bestStageKey ?: "N/A"}
         |
-        |> Privacy Scope: This dataset contains only server captcha images, preprocessing pipeline outputs, OCR diagnostics, and timing metadata captured while Captcha Lab archiving was explicitly enabled. It never contains passwords, usernames, cookies, session tokens, or ViewState.
+        |> Privacy Scope: This dataset contains only server captcha images, preprocessing pipeline outputs, OCR diagnostics, stage benchmark metrics, and timing metadata captured while Captcha Lab archiving was explicitly enabled. It never contains passwords, usernames, cookies, session tokens, or ViewState.
         |
         |## Directory Layout
         |
@@ -210,13 +214,15 @@ object CaptchaLabZipExporter {
         |    attempt_3_fallback_2/ ...
         |```
         |
-        |## Field Guide (`index.jsonl` & `metadata.json`)
+        |## Field Guide (`index.jsonl`, `metadata.json` & `summary.json`)
         |
         |- `captchaId`: Unique UUID linking raw bytes + all primary/fallback attempts of one captcha solve.
         |- `capturedAtUtcIso` / `capturedAtEpochMs`: Solve start timestamp.
         |- `rawFormat` / `mimeType` / `rawExtension` / `rawWidth` / `rawHeight` / `rawRelativePath`: Original server payload details.
         |- `gifInfo`: Binary GIF inspection (`isGif`, `gifVersion`, `isAnimatedGif`, `frameCount`, `logicalWidth`, `logicalHeight`, `decodedFrameIndex`, `note`).
-        |- `outcomeCategory`: One of `SUCCESS_PRIMARY`, `SUCCESS_FALLBACK`, `NO_TEXT_DETECTED`, `VALIDATION_REJECTED`, `DECODE_ERROR`, `PREPROCESS_ERROR`, `MLKIT_ERROR`, `TIMEOUT`, `EMPTY_INPUT`.
+        |- `expectedDigits`: Optional user-entered 4-digit ground truth for computing exact-match stage accuracy (`null` if unlabeled).
+        |- `stageBenchmark`: Optional 9-target benchmark (`RAW` + `DECODED`..`FINAL_PADDED`) containing `bestTargetKey`, `totalDurationMs`, and `targets[]` (`rawOcrFullText`, `elements`, `normalizedDigits`, `validationPassed`, `rejectionCode`, `matchesExpectedDigits`, `averageConfidence`, `ocrDurationMs`).
+        |- `summary.json -> stageCompatibilityLeaderboard[]`: Ranked stage comparison (`rank`, `targetKey`, `valid4DigitRatePercent`, `exactMatchRatePercent`, `averageConfidence`, `noTextRatePercent`, `averageOcrDurationMs`, `compatibilityScore`, `isRecommendedBest`).
         |- `attempts[]`:
         |  - `attemptNumber`, `routeType` (`PRIMARY` or `FALLBACK`), `preprocessConfig`
         |  - `stages[]`: Each stage has `stage`, `status` (`COMPLETED`, `FAILED`, `SKIPPED`, `NOT_RUN`), `width`, `height`, `relativePath`
@@ -234,16 +240,16 @@ object CaptchaLabZipExporter {
         |from PIL import Image
         |
         |root = Path(".")
-        |records = [json.loads(line) for line in (root / "index.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
+        |summary = json.loads((root / "summary.json").read_text(encoding="utf-8"))
+        |print("Best stage:", summary.get("recommendedBestStageKey"))
+        |for row in summary.get("stageCompatibilityLeaderboard", []):
+        |    print(row["rank"], row["targetKey"], row["compatibilityScore"], row["valid4DigitRatePercent"], row["exactMatchRatePercent"])
         |
+        |records = [json.loads(line) for line in (root / "index.jsonl").read_text(encoding="utf-8").splitlines() if line.strip()]
         |for rec in records:
-        |    print(rec["captchaId"], rec["outcomeCategory"], rec["finalDigits"], rec["gifInfo"])
-        |    if rec["rawRelativePath"]:
-        |        raw_img = Image.open(root / rec["rawRelativePath"])
-        |    for attempt in rec["attempts"]:
-        |        final_stage = next((s for s in attempt["stages"] if s["stage"] == "FINAL_PADDED" and s["status"] == "COMPLETED"), None)
-        |        if final_stage and final_stage["relativePath"]:
-        |            mlkit_img = Image.open(root / final_stage["relativePath"])
+        |    bench = rec.get("stageBenchmark")
+        |    if bench:
+        |        print(rec["captchaId"], "best=", bench["bestTargetKey"], "expected=", rec.get("expectedDigits"))
         |```
         |""".trimMargin()
 }

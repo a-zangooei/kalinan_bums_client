@@ -4,9 +4,12 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.example.BuildConfig
 import com.example.data.captcha.preprocess.GrayscaleImage
+import com.example.data.captcha.solver.CaptchaDigitValidator
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -14,6 +17,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -248,6 +252,60 @@ class CaptchaLabRepository internal constructor(
         scope.launch { deleteRecord(captchaId) }
     }
 
+    suspend fun updateStageBenchmark(
+        captchaId: String,
+        benchmark: CaptchaStageBenchmarkResult
+    ): CaptchaLabRecord? = writeMutex.withLock {
+        if (!loadedFromDisk) {
+            _records.value = readAllRecordsFromDisk()
+            loadedFromDisk = true
+        }
+        val safeId = sanitizeId(captchaId)
+        val existing = _records.value.firstOrNull { it.captchaId == safeId } ?: return@withLock null
+        val recalculated = CaptchaStageBenchmarkEngine.recalculateWithExpectedDigits(
+            benchmark = benchmark,
+            expectedDigits = existing.expectedDigits
+        )
+        val updatedRecord = existing.copy(stageBenchmark = recalculated)
+        persistUpdatedRecordLocked(updatedRecord)
+        updatedRecord
+    }
+
+    suspend fun updateExpectedDigits(
+        captchaId: String,
+        expectedDigits: String?
+    ): CaptchaLabRecord? = writeMutex.withLock {
+        if (!loadedFromDisk) {
+            _records.value = readAllRecordsFromDisk()
+            loadedFromDisk = true
+        }
+        val safeId = sanitizeId(captchaId)
+        val existing = _records.value.firstOrNull { it.captchaId == safeId } ?: return@withLock null
+        val normalizedExpected = expectedDigits
+            ?.let { CaptchaDigitValidator.extractNormalizedDigits(it) }
+            ?.takeIf { it.length == CaptchaDigitValidator.REQUIRED_DIGIT_COUNT }
+        val updatedBench = existing.stageBenchmark?.let { bench ->
+            CaptchaStageBenchmarkEngine.recalculateWithExpectedDigits(bench, normalizedExpected)
+        }
+        val updatedRecord = existing.copy(
+            expectedDigits = normalizedExpected,
+            stageBenchmark = updatedBench
+        )
+        persistUpdatedRecordLocked(updatedRecord)
+        updatedRecord
+    }
+
+    private fun persistUpdatedRecordLocked(updatedRecord: CaptchaLabRecord) {
+        val safeId = sanitizeId(updatedRecord.captchaId)
+        val metadataFile = File(File(captchasDir, safeId).apply { mkdirs() }, "metadata.json")
+        writeTextAtomically(metadataFile, CaptchaLabJson.recordToJson(updatedRecord).toString(2))
+        val nextList = _records.value.map { rec ->
+            if (rec.captchaId == safeId) updatedRecord else rec
+        }
+        _records.value = nextList
+        rewriteIndexAndSummary(nextList)
+    }
+
     suspend fun deleteRecord(captchaId: String) = writeMutex.withLock {
         if (!loadedFromDisk) {
             _records.value = readAllRecordsFromDisk()
@@ -355,13 +413,15 @@ class CaptchaLabRepository internal constructor(
             writeTextAtomically(indexFile, jsonlBuilder.toString())
 
             val stats = computeSummaryStats(records)
+            val compatibility = CaptchaStageBenchmarkEngine.analyzeCompatibility(records)
             val summaryJson = CaptchaLabJson.buildSummaryJson(
                 records = records,
                 stats = stats,
                 exportedAtUtcIso = formatUtcIso(System.currentTimeMillis()),
                 appVersionName = appVersionName,
                 appVersionCode = appVersionCode,
-                buildType = buildType
+                buildType = buildType,
+                compatibilitySummary = compatibility
             )
             writeTextAtomically(summaryFile, summaryJson.toString(2))
         }
@@ -473,13 +533,29 @@ object CaptchaLabController : CaptchaLabObserver {
     private val _isArchivingEnabled = MutableStateFlow(false)
     val isArchivingEnabled: StateFlow<Boolean> = _isArchivingEnabled.asStateFlow()
 
+    private val _batchProgress = MutableStateFlow(BatchBenchmarkProgressState())
+    val batchProgress: StateFlow<BatchBenchmarkProgressState> = _batchProgress.asStateFlow()
+
+    private val _activeSingleBenchmarkIds = MutableStateFlow<Set<String>>(emptySet())
+    val activeSingleBenchmarkIds: StateFlow<Set<String>> = _activeSingleBenchmarkIds.asStateFlow()
+
+    private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val benchmarkEngine = CaptchaStageBenchmarkEngine()
+    private var batchJob: Job? = null
+
     @Volatile
     private var repository: CaptchaLabRepository? = null
 
+    @Volatile
+    private var processInitialized: Boolean = false
+
     fun init(context: Context) {
-        _isArchivingEnabled.value = false
         val repo = repository ?: CaptchaLabRepository(context).also { repository = it }
-        repo.loadExistingAsync()
+        if (!processInitialized) {
+            _isArchivingEnabled.value = false
+            processInitialized = true
+            repo.loadExistingAsync()
+        }
     }
 
     fun getRepository(context: Context): CaptchaLabRepository {
@@ -493,6 +569,106 @@ object CaptchaLabController : CaptchaLabObserver {
 
     fun setArchivingEnabled(enabled: Boolean) {
         _isArchivingEnabled.value = enabled
+    }
+
+    fun updateExpectedDigitsAsync(
+        context: Context,
+        captchaId: String,
+        expectedDigits: String?,
+        onComplete: ((CaptchaLabRecord?) -> Unit)? = null
+    ) {
+        val repo = getRepository(context)
+        controllerScope.launch {
+            val updated = repo.updateExpectedDigits(captchaId, expectedDigits)
+            onComplete?.let { cb ->
+                withContext(Dispatchers.Main) { cb(updated) }
+            }
+        }
+    }
+
+    fun runSingleBenchmarkAsync(
+        context: Context,
+        captchaId: String,
+        attemptNumber: Int? = null,
+        onComplete: ((CaptchaStageBenchmarkResult?) -> Unit)? = null
+    ) {
+        val repo = getRepository(context)
+        if (_activeSingleBenchmarkIds.value.contains(captchaId)) return
+        _activeSingleBenchmarkIds.value = _activeSingleBenchmarkIds.value + captchaId
+
+        controllerScope.launch {
+            var savedResult: CaptchaStageBenchmarkResult? = null
+            try {
+                repo.ensureLoaded()
+                val record = repo.records.value.firstOrNull { it.captchaId == captchaId }
+                if (record != null) {
+                    val result = benchmarkEngine.benchmarkRecord(
+                        repository = repo,
+                        record = record,
+                        attemptNumber = attemptNumber
+                    )
+                    repo.updateStageBenchmark(captchaId, result)
+                    savedResult = result
+                }
+            } catch (_: Throwable) {
+                // Keep UI responsive and isolated if ML Kit or decoding fails unexpectedly
+            } finally {
+                _activeSingleBenchmarkIds.value = _activeSingleBenchmarkIds.value - captchaId
+                onComplete?.let { cb ->
+                    withContext(Dispatchers.Main) { cb(savedResult) }
+                }
+            }
+        }
+    }
+
+    fun startBatchBenchmark(
+        context: Context,
+        targetRecords: List<CaptchaLabRecord>,
+        scopeLabel: String,
+        onFinished: ((completedCount: Int, cancelled: Boolean) -> Unit)? = null
+    ) {
+        if (_batchProgress.value.isRunning || targetRecords.isEmpty()) return
+        val repo = getRepository(context)
+        batchJob?.cancel()
+        _batchProgress.value = BatchBenchmarkProgressState(
+            isRunning = true,
+            scopeLabel = scopeLabel,
+            completedCount = 0,
+            totalCount = targetRecords.size,
+            currentCaptchaId = targetRecords.firstOrNull()?.captchaId
+        )
+
+        batchJob = controllerScope.launch {
+            var completed = 0
+            var cancelled = false
+            try {
+                repo.ensureLoaded()
+                benchmarkEngine.benchmarkBatch(repo, targetRecords) { done, total, currentId, _ ->
+                    completed = done
+                    _batchProgress.value = BatchBenchmarkProgressState(
+                        isRunning = true,
+                        scopeLabel = scopeLabel,
+                        completedCount = done,
+                        totalCount = total,
+                        currentCaptchaId = currentId
+                    )
+                }
+            } catch (_: CancellationException) {
+                cancelled = true
+            } catch (_: Throwable) {
+                // Partial results completed prior to error are already persisted per record
+            } finally {
+                _batchProgress.value = BatchBenchmarkProgressState(isRunning = false)
+                onFinished?.let { cb ->
+                    withContext(Dispatchers.Main) { cb(completed, cancelled) }
+                }
+            }
+        }
+    }
+
+    fun cancelBatchBenchmark() {
+        batchJob?.cancel()
+        batchJob = null
     }
 
     override fun isArchivingEnabled(): Boolean = _isArchivingEnabled.value

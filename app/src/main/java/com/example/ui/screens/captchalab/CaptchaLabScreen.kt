@@ -30,16 +30,19 @@ import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SaveAlt
 import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -83,6 +86,7 @@ import com.example.data.captcha.lab.CaptchaLabRepository
 import com.example.data.captcha.lab.CaptchaLabSort
 import com.example.data.captcha.lab.CaptchaLabSummaryStats
 import com.example.data.captcha.lab.CaptchaLabZipExporter
+import com.example.data.captcha.lab.CaptchaStageBenchmarkEngine
 import com.example.ui.components.PersianRtlLayout
 import com.example.ui.theme.TealPrimary
 import kotlinx.coroutines.Dispatchers
@@ -104,6 +108,8 @@ fun CaptchaLabScreen(
     val repository = remember { CaptchaLabController.getRepository(context) }
     val records by repository.records.collectAsStateWithLifecycle()
     val isArchivingEnabled by CaptchaLabController.isArchivingEnabled.collectAsStateWithLifecycle()
+    val batchProgress by CaptchaLabController.batchProgress.collectAsStateWithLifecycle()
+    val activeSingleIds by CaptchaLabController.activeSingleBenchmarkIds.collectAsStateWithLifecycle()
 
     LaunchedEffect(repository) {
         repository.ensureLoaded()
@@ -114,6 +120,7 @@ fun CaptchaLabScreen(
     var selectedRecordId by remember { mutableStateOf<String?>(null) }
     var comparisonRequest by remember { mutableStateOf<CaptchaComparisonRequest?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
+    var showBatchScopeDialog by remember { mutableStateOf(false) }
 
     val selectedRecord = remember(records, selectedRecordId) {
         selectedRecordId?.let { id -> records.firstOrNull { it.captchaId == id } }
@@ -159,9 +166,35 @@ fun CaptchaLabScreen(
                     )
                 }
                 selectedRecord != null -> {
+                    val isSingleRunning = selectedRecord.captchaId in activeSingleIds
                     CaptchaLabDetailView(
                         repository = repository,
                         record = selectedRecord,
+                        isBenchmarkRunning = isSingleRunning || batchProgress.isRunning,
+                        onRunStageBenchmark = { attemptNum ->
+                            CaptchaLabController.runSingleBenchmarkAsync(
+                                context = context,
+                                captchaId = selectedRecord.captchaId,
+                                attemptNumber = attemptNum
+                            ) { result ->
+                                if (result != null) {
+                                    Toast.makeText(context, "OCR تصویر خام و ۸ مرحله تکمیل شد.", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                        },
+                        onSaveExpectedDigits = { digits ->
+                            CaptchaLabController.updateExpectedDigitsAsync(
+                                context = context,
+                                captchaId = selectedRecord.captchaId,
+                                expectedDigits = digits
+                            ) {
+                                Toast.makeText(
+                                    context,
+                                    if (digits != null) "برچسب صحیح $digits ثبت شد." else "برچسب دستی پاک شد.",
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
+                        },
                         onBack = { selectedRecordId = null },
                         onDeleteRecord = {
                             repository.deleteRecordAsync(selectedRecord.captchaId)
@@ -175,6 +208,26 @@ fun CaptchaLabScreen(
                     val stats = remember(records) { CaptchaLabRepository.computeSummaryStats(records) }
                     val displayedRecords = remember(records, activeFilter, activeSort) {
                         CaptchaLabRepository.filterAndSort(records, activeFilter, activeSort)
+                    }
+                    val compatibilitySummary = remember(records) {
+                        CaptchaStageBenchmarkEngine.analyzeCompatibility(records)
+                    }
+                    val startBatchOn: (List<com.example.data.captcha.lab.CaptchaLabRecord>, String) -> Unit = { list, label ->
+                        CaptchaLabController.startBatchBenchmark(context, list, label) { count, cancelled ->
+                            val msg = if (cancelled) {
+                                "اجرای انبوه متوقف شد ($count کپچا ثبت شد)."
+                            } else {
+                                "اجرای انبوه OCR روی $count کپچا تکمیل شد."
+                            }
+                            Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    val triggerBatchClick: () -> Unit = {
+                        if (activeFilter == CaptchaLabFilter.ALL) {
+                            startBatchOn(records, "همه کپچاها")
+                        } else {
+                            showBatchScopeDialog = true
+                        }
                     }
 
                     PersianRtlLayout {
@@ -264,7 +317,8 @@ fun CaptchaLabScreen(
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(paddingValues)
-                                    .padding(horizontal = 14.dp),
+                                    .padding(horizontal = 14.dp)
+                                    .testTag("captcha_lab_main_list"),
                                 contentPadding = PaddingValues(vertical = 10.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
@@ -279,6 +333,49 @@ fun CaptchaLabScreen(
 
                                 item {
                                     KpiSummaryRow(stats = stats)
+                                }
+
+                                if (batchProgress.isRunning) {
+                                    item {
+                                        BatchBenchmarkProgressCard(
+                                            progress = batchProgress,
+                                            onCancel = { CaptchaLabController.cancelBatchBenchmark() }
+                                        )
+                                    }
+                                }
+
+                                if (records.isNotEmpty()) {
+                                    item {
+                                        OutlinedButton(
+                                            onClick = triggerBatchClick,
+                                            enabled = !batchProgress.isRunning,
+                                            shape = RoundedCornerShape(10.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .heightIn(min = 48.dp)
+                                                .testTag("captcha_lab_batch_ocr_button")
+                                        ) {
+                                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            Text(
+                                                text = if (activeFilter == CaptchaLabFilter.ALL) {
+                                                    "اجرای انبوه OCR خام + ۸ مرحله (${records.size} کپچا)"
+                                                } else {
+                                                    "اجرای انبوه OCR (انتخاب محدوده)"
+                                                },
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                        }
+                                    }
+
+                                    item {
+                                        StageCompatibilityLeaderboardCard(
+                                            summary = compatibilitySummary,
+                                            isBatchRunning = batchProgress.isRunning,
+                                            onRunBatchClick = triggerBatchClick
+                                        )
+                                    }
                                 }
 
                                 item {
@@ -317,9 +414,19 @@ fun CaptchaLabScreen(
                                     }
                                 } else {
                                     items(displayedRecords, key = { it.captchaId }) { record ->
+                                        val isSingleRunning = record.captchaId in activeSingleIds
                                         CaptchaRecordListCard(
                                             repository = repository,
                                             record = record,
+                                            isBenchmarkRunning = isSingleRunning,
+                                            batchRunning = batchProgress.isRunning,
+                                            onRunSingleOcr = {
+                                                CaptchaLabController.runSingleBenchmarkAsync(context, record.captchaId) { result ->
+                                                    if (result != null) {
+                                                        Toast.makeText(context, "OCR مراحل ${record.captchaId.take(8)} ثبت شد.", Toast.LENGTH_SHORT).show()
+                                                    }
+                                                }
+                                            },
                                             onClick = { selectedRecordId = record.captchaId },
                                             onDelete = {
                                                 repository.deleteRecordAsync(record.captchaId)
@@ -329,6 +436,55 @@ fun CaptchaLabScreen(
                                 }
                             }
                         }
+                    }
+
+                    if (showBatchScopeDialog) {
+                        AlertDialog(
+                            onDismissRequest = { showBatchScopeDialog = false },
+                            title = { Text("انتخاب محدوده اجرای انبوه OCR", fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                            text = {
+                                Text(
+                                    text = "آیا OCR روی تصویر خام + ۸ مرحله پیش‌پردازش برای فهرست فیلترشده (${displayedRecords.size} کپچا) اجرا شود یا برای کل آرشیو (${records.size} کپچا)؟",
+                                    fontSize = 12.sp
+                                )
+                            },
+                            confirmButton = {
+                                TextButton(
+                                    onClick = {
+                                        showBatchScopeDialog = false
+                                        startBatchOn(displayedRecords, activeFilter.labelFa)
+                                    },
+                                    enabled = displayedRecords.isNotEmpty(),
+                                    modifier = Modifier
+                                        .minimumInteractiveComponentSize()
+                                        .testTag("captcha_lab_batch_filtered_button")
+                                ) {
+                                    Text("لیست فیلترشده (${displayedRecords.size})", fontWeight = FontWeight.Bold)
+                                }
+                            },
+                            dismissButton = {
+                                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    TextButton(
+                                        onClick = { showBatchScopeDialog = false },
+                                        modifier = Modifier.minimumInteractiveComponentSize()
+                                    ) {
+                                        Text("انصراف")
+                                    }
+                                    TextButton(
+                                        onClick = {
+                                            showBatchScopeDialog = false
+                                            startBatchOn(records, "همه کپچاها")
+                                        },
+                                        enabled = records.isNotEmpty(),
+                                        modifier = Modifier
+                                            .minimumInteractiveComponentSize()
+                                            .testTag("captcha_lab_batch_all_button")
+                                    ) {
+                                        Text("کل آرشیو (${records.size})", fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        )
                     }
 
                     if (showClearConfirm) {
@@ -345,6 +501,7 @@ fun CaptchaLabScreen(
                                 TextButton(
                                     onClick = {
                                         showClearConfirm = false
+                                        CaptchaLabController.cancelBatchBenchmark()
                                         repository.clearAllAsync()
                                         Toast.makeText(context, "بایگانی کپچا به‌طور کامل پاک‌سازی شد.", Toast.LENGTH_SHORT).show()
                                     },
@@ -501,6 +658,9 @@ private fun KpiCard(
 private fun CaptchaRecordListCard(
     repository: CaptchaLabRepository,
     record: CaptchaLabRecord,
+    isBenchmarkRunning: Boolean,
+    batchRunning: Boolean,
+    onRunSingleOcr: () -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit
 ) {
@@ -510,6 +670,12 @@ private fun CaptchaRecordListCard(
     }
     val rawOcrPreview = remember(record) {
         record.attempts.lastOrNull { !it.rawOcrFullText.isNullOrBlank() }?.rawOcrFullText
+    }
+    val bestBenchmarkTarget = remember(record.stageBenchmark) {
+        val bench = record.stageBenchmark ?: return@remember null
+        bench.bestTargetKey?.let { bestKey ->
+            bench.targets.firstOrNull { it.targetKey == bestKey }
+        }
     }
 
     Card(
@@ -526,12 +692,12 @@ private fun CaptchaRecordListCard(
                 .fillMaxWidth()
                 .padding(12.dp),
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             // Raw thumbnail preview
             Box(
                 modifier = Modifier
-                    .size(width = 84.dp, height = 52.dp)
+                    .size(width = 76.dp, height = 48.dp)
                     .background(Color.White, RoundedCornerShape(8.dp)),
                 contentAlignment = Alignment.Center
             ) {
@@ -619,6 +785,46 @@ private fun CaptchaRecordListCard(
                     }
                 }
 
+                if (bestBenchmarkTarget != null || !record.expectedDigits.isNullOrBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        bestBenchmarkTarget?.let { best ->
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = Color(0xFF2E7D32).copy(alpha = 0.12f)
+                            ) {
+                                Text(
+                                    text = "بهترین: ${best.targetTitleFa}",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = Color(0xFF1B5E20),
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                                )
+                            }
+                        }
+                        record.expectedDigits?.let { gt ->
+                            CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
+                                Surface(
+                                    shape = RoundedCornerShape(6.dp),
+                                    color = TealPrimary.copy(alpha = 0.12f)
+                                ) {
+                                    Text(
+                                        text = "GT:$gt",
+                                        fontSize = 9.sp,
+                                        fontFamily = FontFamily.Monospace,
+                                        color = TealPrimary,
+                                        modifier = Modifier.padding(horizontal = 5.dp, vertical = 2.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+
                 CompositionLocalProvider(LocalLayoutDirection provides LayoutDirection.Ltr) {
                     Text(
                         text = "$timeText • ${record.buildType} • ${record.totalDurationMs}ms • ${record.rawFormat}",
@@ -627,6 +833,28 @@ private fun CaptchaRecordListCard(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
+                    )
+                }
+            }
+
+            IconButton(
+                onClick = onRunSingleOcr,
+                enabled = !isBenchmarkRunning && !batchRunning,
+                modifier = Modifier
+                    .minimumInteractiveComponentSize()
+                    .testTag("captcha_lab_run_ocr_${record.captchaId}")
+            ) {
+                if (isBenchmarkRunning) {
+                    CircularProgressIndicator(
+                        strokeWidth = 2.dp,
+                        color = TealPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                } else {
+                    Icon(
+                        Icons.Default.PlayArrow,
+                        contentDescription = "اجرای OCR تمام مراحل",
+                        tint = TealPrimary
                     )
                 }
             }

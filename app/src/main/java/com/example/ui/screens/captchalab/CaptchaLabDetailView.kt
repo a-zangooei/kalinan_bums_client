@@ -84,6 +84,9 @@ import java.util.Locale
 internal fun CaptchaLabDetailView(
     repository: CaptchaLabRepository,
     record: CaptchaLabRecord,
+    isBenchmarkRunning: Boolean = false,
+    onRunStageBenchmark: (attemptNumber: Int?) -> Unit = {},
+    onSaveExpectedDigits: (String?) -> Unit = {},
     onBack: () -> Unit,
     onDeleteRecord: () -> Unit,
     onOpenComparison: (CaptchaComparisonRequest) -> Unit
@@ -150,7 +153,8 @@ internal fun CaptchaLabDetailView(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(paddingValues)
-                    .padding(horizontal = 14.dp),
+                    .padding(horizontal = 14.dp)
+                    .testTag("captcha_detail_list"),
                 contentPadding = PaddingValues(vertical = 12.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
@@ -174,6 +178,19 @@ internal fun CaptchaLabDetailView(
                                 )
                             )
                         }
+                    )
+                }
+
+                // 2.5 Manual Stage OCR Benchmark & Ground Truth Label
+                item {
+                    val activeAttemptNum = selectedAttempt?.attemptNumber ?: 1
+                    StageBenchmarkSectionCard(
+                        record = record,
+                        selectedAttemptNumber = activeAttemptNum,
+                        isBenchmarkRunning = isBenchmarkRunning,
+                        onRunStageOcr = { onRunStageBenchmark(selectedAttempt?.attemptNumber) },
+                        onSaveExpectedDigits = { digits -> onSaveExpectedDigits(digits) },
+                        onClearExpectedDigits = { onSaveExpectedDigits(null) }
                     )
                 }
 
