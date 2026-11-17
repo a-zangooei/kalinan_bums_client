@@ -5,7 +5,9 @@ import com.example.data.captcha.preprocess.CaptchaPreprocessor
 import com.example.data.captcha.preprocess.NoiseRemovalMode
 import com.example.data.captcha.preprocess.PreprocessConfig
 import com.example.data.captcha.preprocess.ThresholdMode
+import com.example.data.logger.LogSanitizer
 import com.google.android.gms.tasks.Task
+import com.google.mlkit.common.MlKitException
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.Text
 import com.google.mlkit.vision.text.TextRecognition
@@ -138,7 +140,7 @@ data class CaptchaSolverConfig(
  * - بازگشت فوری در صورت استخراج ۴ رقم معتبر و مطمئن در تلاش اول؛
  *   در غیر این صورت بررسی حداکثر ۲ پیکربندی جایگزین و رد خروجی‌های متعارض با [CaptchaResult.NotConfident].
  * - آزادسازی قطعی Bitmapهای میانی و `TextRecognizer` حتی در لغو Coroutine یا Timeout.
- * - بدون ذخیره تصویر روی دیسک و بدون ثبت هیچ‌گونه لاگ از تصویر یا ارقام.
+ * - بدون ذخیره تصویر روی دیسک و بدون ثبت هیچ‌گونه لاگ از تصویر یا ارقام (فقط تله‌متری فنی امن در خطاها).
  */
 class MlKitCaptchaSolver internal constructor(
     private val solverConfig: CaptchaSolverConfig = CaptchaSolverConfig(),
@@ -158,36 +160,107 @@ class MlKitCaptchaSolver internal constructor(
         sessionFactory = { MlKitOcrSession() }
     )
 
-    override suspend fun solve(imageBytes: ByteArray): CaptchaResult {
+    override suspend fun solve(imageBytes: ByteArray): CaptchaResult =
+        solveWithDiagnostics(imageBytes).result
+
+    override suspend fun solveWithDiagnostics(imageBytes: ByteArray): CaptchaSolveOutcome {
+        val startNs = System.nanoTime()
+        fun elapsedMs(): Long = ((System.nanoTime() - startNs) / 1_000_000L).coerceAtLeast(0L)
+
         if (imageBytes.isEmpty()) {
-            return CaptchaResult.Error("داده تصویر کپچا خالی است.")
+            return CaptchaSolveOutcome(
+                result = CaptchaResult.Error("داده تصویر کپچا خالی است."),
+                diagnostics = OcrDiagnosticReport(
+                    stage = OcrSolveStage.INPUT_VALIDATION,
+                    attemptCount = 0,
+                    elapsedMs = elapsedMs(),
+                    lastRejectionCode = "EMPTY_IMAGE_BYTES"
+                )
+            )
         }
 
         return withContext(dispatcher) {
             var session: OcrSession? = null
+            var activeStage = OcrSolveStage.SESSION_INIT
+            var attemptCount = 0
+            var lastRejectionCode: String? = null
+            var lastElementCount: Int? = null
+            var lastExtractedDigitCount: Int? = null
+
+            val tracker = StageTracker(
+                onStageChange = { activeStage = it },
+                onAttemptStart = { attemptCount++ }
+            )
+
             try {
                 withTimeout(solverConfig.timeoutMs) {
+                    activeStage = OcrSolveStage.SESSION_INIT
                     val activeSession = sessionFactory().also { session = it }
 
                     // Attempt 1 (Primary): fast-path immediate Success if 4 confident digits found
                     val firstAttempt = runSingleAttempt(
                         imageBytes = imageBytes,
                         preprocessConfig = solverConfig.primaryConfig,
-                        session = activeSession
+                        session = activeSession,
+                        tracker = tracker
                     )
                     when (firstAttempt) {
-                        is AttemptResult.ValidDigits -> return@withTimeout CaptchaResult.Success(firstAttempt.digits)
-                        is AttemptResult.PreprocessFailed -> Unit
-                        is AttemptResult.Rejected -> Unit
+                        is AttemptResult.ValidDigits -> {
+                            return@withTimeout CaptchaSolveOutcome(
+                                result = CaptchaResult.Success(firstAttempt.digits),
+                                diagnostics = OcrDiagnosticReport(
+                                    stage = OcrSolveStage.SUCCESS,
+                                    attemptCount = attemptCount,
+                                    elapsedMs = elapsedMs(),
+                                    elementCount = firstAttempt.elementCount,
+                                    extractedDigitCount = CaptchaDigitValidator.REQUIRED_DIGIT_COUNT
+                                )
+                            )
+                        }
+                        is AttemptResult.PreprocessFailed -> {
+                            lastRejectionCode = "PREPROCESS_NULL"
+                        }
+                        is AttemptResult.Rejected -> {
+                            lastRejectionCode = firstAttempt.rejectionCode
+                            lastElementCount = firstAttempt.elementCount
+                            lastExtractedDigitCount = firstAttempt.extractedDigitCount
+                        }
                     }
 
                     // Attempts 2..3 (Fallback configs, fixed ceiling)
                     val fallbackConfigs = solverConfig.fallbackConfigs.take(CaptchaSolverConfig.MAX_FALLBACK_ATTEMPTS)
                     if (fallbackConfigs.isEmpty()) {
                         return@withTimeout when (firstAttempt) {
-                            is AttemptResult.PreprocessFailed -> CaptchaResult.Error("پیش‌پردازش تصویر کپچا ناموفق بود.")
-                            is AttemptResult.Rejected -> CaptchaResult.NotConfident(firstAttempt.reason)
-                            is AttemptResult.ValidDigits -> CaptchaResult.Success(firstAttempt.digits)
+                            is AttemptResult.PreprocessFailed -> CaptchaSolveOutcome(
+                                result = CaptchaResult.Error("پیش‌پردازش تصویر کپچا ناموفق بود."),
+                                diagnostics = OcrDiagnosticReport(
+                                    stage = OcrSolveStage.PREPROCESS,
+                                    attemptCount = attemptCount,
+                                    elapsedMs = elapsedMs(),
+                                    lastRejectionCode = "PREPROCESS_NULL"
+                                )
+                            )
+                            is AttemptResult.Rejected -> CaptchaSolveOutcome(
+                                result = CaptchaResult.NotConfident(firstAttempt.reason),
+                                diagnostics = OcrDiagnosticReport(
+                                    stage = OcrSolveStage.VALIDATE,
+                                    attemptCount = attemptCount,
+                                    elapsedMs = elapsedMs(),
+                                    lastRejectionCode = firstAttempt.rejectionCode,
+                                    elementCount = firstAttempt.elementCount,
+                                    extractedDigitCount = firstAttempt.extractedDigitCount
+                                )
+                            )
+                            is AttemptResult.ValidDigits -> CaptchaSolveOutcome(
+                                result = CaptchaResult.Success(firstAttempt.digits),
+                                diagnostics = OcrDiagnosticReport(
+                                    stage = OcrSolveStage.SUCCESS,
+                                    attemptCount = attemptCount,
+                                    elapsedMs = elapsedMs(),
+                                    elementCount = firstAttempt.elementCount,
+                                    extractedDigitCount = CaptchaDigitValidator.REQUIRED_DIGIT_COUNT
+                                )
+                            )
                         }
                     }
 
@@ -196,39 +269,107 @@ class MlKitCaptchaSolver internal constructor(
                     var preprocessSuccessCount = if (firstAttempt is AttemptResult.PreprocessFailed) 0 else 1
 
                     for (fallbackConfig in fallbackConfigs) {
-                        when (val fallbackResult = runSingleAttempt(imageBytes, fallbackConfig, activeSession)) {
+                        when (val fallbackResult = runSingleAttempt(imageBytes, fallbackConfig, activeSession, tracker)) {
                             is AttemptResult.ValidDigits -> {
                                 preprocessSuccessCount++
                                 fallbackValidDigits.add(fallbackResult.digits)
+                                lastElementCount = fallbackResult.elementCount
+                                lastExtractedDigitCount = CaptchaDigitValidator.REQUIRED_DIGIT_COUNT
                             }
                             is AttemptResult.Rejected -> {
                                 preprocessSuccessCount++
                                 lastRejectionReason = fallbackResult.reason
+                                lastRejectionCode = fallbackResult.rejectionCode
+                                lastElementCount = fallbackResult.elementCount
+                                lastExtractedDigitCount = fallbackResult.extractedDigitCount
                             }
-                            is AttemptResult.PreprocessFailed -> Unit
+                            is AttemptResult.PreprocessFailed -> {
+                                if (lastRejectionCode == null) {
+                                    lastRejectionCode = "PREPROCESS_NULL"
+                                }
+                            }
                         }
                     }
 
                     if (preprocessSuccessCount == 0) {
-                        return@withTimeout CaptchaResult.Error("تصویر کپچا قابل پیش‌پردازش نیست.")
+                        return@withTimeout CaptchaSolveOutcome(
+                            result = CaptchaResult.Error("تصویر کپچا قابل پیش‌پردازش نیست."),
+                            diagnostics = OcrDiagnosticReport(
+                                stage = OcrSolveStage.PREPROCESS,
+                                attemptCount = attemptCount,
+                                elapsedMs = elapsedMs(),
+                                lastRejectionCode = "PREPROCESS_NULL"
+                            )
+                        )
                     }
 
                     val distinctCandidates = fallbackValidDigits.distinct()
                     when {
-                        distinctCandidates.isEmpty() ->
-                            CaptchaResult.NotConfident(lastRejectionReason ?: "تشخیص ۴ رقم معتبر نامطمئن است.")
-                        distinctCandidates.size == 1 ->
-                            CaptchaResult.Success(distinctCandidates.first())
-                        else ->
-                            CaptchaResult.NotConfident("تلاش‌های پیش‌پردازش به دو نتیجه ۴ رقمی متفاوت رسیدند.")
+                        distinctCandidates.isEmpty() -> CaptchaSolveOutcome(
+                            result = CaptchaResult.NotConfident(lastRejectionReason ?: "تشخیص ۴ رقم معتبر نامطمئن است."),
+                            diagnostics = OcrDiagnosticReport(
+                                stage = OcrSolveStage.VALIDATE,
+                                attemptCount = attemptCount,
+                                elapsedMs = elapsedMs(),
+                                lastRejectionCode = lastRejectionCode ?: "VALIDATION_REJECTED",
+                                elementCount = lastElementCount,
+                                extractedDigitCount = lastExtractedDigitCount
+                            )
+                        )
+                        distinctCandidates.size == 1 -> CaptchaSolveOutcome(
+                            result = CaptchaResult.Success(distinctCandidates.first()),
+                            diagnostics = OcrDiagnosticReport(
+                                stage = OcrSolveStage.SUCCESS,
+                                attemptCount = attemptCount,
+                                elapsedMs = elapsedMs(),
+                                elementCount = lastElementCount,
+                                extractedDigitCount = CaptchaDigitValidator.REQUIRED_DIGIT_COUNT
+                            )
+                        )
+                        else -> CaptchaSolveOutcome(
+                            result = CaptchaResult.NotConfident("تلاش‌های پیش‌پردازش به دو نتیجه ۴ رقمی متفاوت رسیدند."),
+                            diagnostics = OcrDiagnosticReport(
+                                stage = OcrSolveStage.VALIDATE,
+                                attemptCount = attemptCount,
+                                elapsedMs = elapsedMs(),
+                                lastRejectionCode = "CONFLICTING_CANDIDATES",
+                                elementCount = lastElementCount,
+                                extractedDigitCount = CaptchaDigitValidator.REQUIRED_DIGIT_COUNT
+                            )
+                        )
                     }
                 }
             } catch (_: TimeoutCancellationException) {
-                CaptchaResult.Error("زمان مجاز برای تشخیص خودکار کپچا به پایان رسید.")
+                CaptchaSolveOutcome(
+                    result = CaptchaResult.Error("زمان مجاز برای تشخیص خودکار کپچا به پایان رسید."),
+                    diagnostics = OcrDiagnosticReport(
+                        stage = OcrSolveStage.TIMEOUT,
+                        attemptCount = attemptCount,
+                        elapsedMs = elapsedMs(),
+                        exceptionType = TimeoutCancellationException::class.java.name,
+                        causeChain = "Timed out after ${solverConfig.timeoutMs}ms at stage=${activeStage.name}",
+                        lastRejectionCode = "TIMEOUT_AT_${activeStage.name}",
+                        elementCount = lastElementCount,
+                        extractedDigitCount = lastExtractedDigitCount
+                    )
+                )
             } catch (ce: CancellationException) {
                 throw ce
-            } catch (_: Throwable) {
-                CaptchaResult.Error("خطا در اجرای موتور تشخیص خودکار کپچا.")
+            } catch (t: Throwable) {
+                CaptchaSolveOutcome(
+                    result = CaptchaResult.Error("خطا در اجرای موتور تشخیص خودکار کپچا."),
+                    diagnostics = OcrDiagnosticReport(
+                        stage = activeStage,
+                        attemptCount = attemptCount,
+                        elapsedMs = elapsedMs(),
+                        exceptionType = t.javaClass.name,
+                        mlKitErrorCode = extractMlKitErrorCode(t),
+                        causeChain = buildSanitizedCauseChain(t),
+                        lastRejectionCode = "EXCEPTION_AT_${activeStage.name}",
+                        elementCount = lastElementCount,
+                        extractedDigitCount = lastExtractedDigitCount
+                    )
+                )
             } finally {
                 session?.close()
             }
@@ -238,31 +379,101 @@ class MlKitCaptchaSolver internal constructor(
     private suspend fun runSingleAttempt(
         imageBytes: ByteArray,
         preprocessConfig: PreprocessConfig,
-        session: OcrSession
+        session: OcrSession,
+        tracker: StageTracker
     ): AttemptResult {
+        tracker.onAttemptStart()
+        tracker.onStageChange(OcrSolveStage.PREPROCESS)
         val frame = framePreprocessor(imageBytes, preprocessConfig) ?: return AttemptResult.PreprocessFailed
+
         var recognizedOutput: OcrOutput? = null
         try {
+            tracker.onStageChange(OcrSolveStage.RECOGNIZE)
             recognizedOutput = session.recognize(frame)
         } finally {
             // Idempotent cleanup if OcrSession threw before or during recognition
             frame.release()
         }
 
+        tracker.onStageChange(OcrSolveStage.VALIDATE)
         return when (
             val validation = CaptchaDigitValidator.validate(
                 output = recognizedOutput,
                 minElementConfidence = solverConfig.minElementConfidence
             )
         ) {
-            is DigitValidationOutcome.Valid -> AttemptResult.ValidDigits(validation.digits)
-            is DigitValidationOutcome.Invalid -> AttemptResult.Rejected(validation.reason)
+            is DigitValidationOutcome.Valid -> AttemptResult.ValidDigits(
+                digits = validation.digits,
+                elementCount = recognizedOutput.elements.size
+            )
+            is DigitValidationOutcome.Invalid -> AttemptResult.Rejected(
+                reason = validation.reason,
+                rejectionCode = validation.rejectionCode,
+                elementCount = validation.elementCount,
+                extractedDigitCount = validation.extractedDigitCount
+            )
         }
     }
 
+    private class StageTracker(
+        val onStageChange: (OcrSolveStage) -> Unit,
+        val onAttemptStart: () -> Unit
+    )
+
     private sealed class AttemptResult {
-        data class ValidDigits(val digits: String) : AttemptResult()
-        data class Rejected(val reason: String) : AttemptResult()
+        data class ValidDigits(val digits: String, val elementCount: Int) : AttemptResult()
+        data class Rejected(
+            val reason: String,
+            val rejectionCode: String,
+            val elementCount: Int,
+            val extractedDigitCount: Int
+        ) : AttemptResult()
         data object PreprocessFailed : AttemptResult()
     }
+
+    companion object {
+        private const val MAX_CAUSE_DEPTH = 4
+        private const val MAX_CAUSE_CHAIN_LENGTH = 500
+
+        internal fun extractMlKitErrorCode(throwable: Throwable): Int? {
+            var current: Throwable? = throwable
+            var depth = 0
+            while (current != null && depth < MAX_CAUSE_DEPTH) {
+                if (current is MlKitException) {
+                    return current.errorCode
+                }
+                current = current.cause
+                depth++
+            }
+            return null
+        }
+
+        internal fun buildSanitizedCauseChain(throwable: Throwable): String {
+            val parts = mutableListOf<String>()
+            var current: Throwable? = throwable
+            var depth = 0
+            while (current != null && depth < MAX_CAUSE_DEPTH) {
+                val safeMsg = current.message
+                    ?.replace(Regex("[\\r\\n]+"), " ")
+                    ?.trim()
+                    ?.let { LogSanitizer.sanitizeText(it) }
+                    ?.take(180)
+                    ?.ifBlank { null }
+                val mlCode = (current as? MlKitException)?.let { " [mlKitCode=${it.errorCode}]" } ?: ""
+                val segment = buildString {
+                    append(current.javaClass.name)
+                    append(mlCode)
+                    if (safeMsg != null) {
+                        append(": ")
+                        append(safeMsg)
+                    }
+                }
+                parts.add(segment)
+                current = current.cause
+                depth++
+            }
+            return parts.joinToString(" <- ").take(MAX_CAUSE_CHAIN_LENGTH)
+        }
+    }
 }
+

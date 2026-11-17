@@ -10,6 +10,8 @@ import com.example.data.captcha.solver.MlKitCaptchaSolver
 import com.example.data.captcha.solver.OcrElement
 import com.example.data.captcha.solver.OcrOutput
 import com.example.data.captcha.solver.OcrSession
+import com.example.data.captcha.solver.OcrSolveStage
+import com.google.mlkit.common.MlKitException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.delay
@@ -306,4 +308,119 @@ class MlKitCaptchaSolverUnitTest {
         assertTrue(corruptRes is CaptchaResult.Error)
         assertTrue("Session opened for corrupt bytes must still be closed", fakeSession.closed)
     }
+
+    @Test
+    fun solveWithDiagnostics_reportsSessionInitFailureWithoutCallingPreprocessorOrSession() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        var preprocessCalled = false
+
+        val solver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(),
+            dispatcher = dispatcher,
+            framePreprocessor = { _, _ ->
+                preprocessCalled = true
+                FakeFrame()
+            },
+            sessionFactory = {
+                throw IllegalStateException(
+                    "ComponentRegistrar missing constructor",
+                    NoSuchMethodException("TextRegistrar.<init> []")
+                )
+            }
+        )
+
+        val outcome = solver.solveWithDiagnostics(dummyImageBytes)
+
+        assertTrue(outcome.result is CaptchaResult.Error)
+        assertFalse(preprocessCalled)
+        assertEquals(OcrSolveStage.SESSION_INIT, outcome.diagnostics.stage)
+        assertEquals(0, outcome.diagnostics.attemptCount)
+        assertEquals("java.lang.IllegalStateException", outcome.diagnostics.exceptionType)
+        assertTrue(outcome.diagnostics.causeChain?.contains("NoSuchMethodException") == true)
+        assertTrue(outcome.diagnostics.causeChain?.contains("TextRegistrar") == true)
+    }
+
+    @Test
+    fun solveWithDiagnostics_capturesMlKitExceptionCodeAndStageAtRecognizeAndClosesResources() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val createdFrames = mutableListOf<FakeFrame>()
+        val failingSession = object : OcrSession {
+            var closed = false
+            override suspend fun recognize(frame: CaptchaFrame): OcrOutput {
+                throw MlKitException("Waiting for the text optional module", MlKitException.UNAVAILABLE)
+            }
+            override fun close() {
+                closed = true
+            }
+        }
+
+        val solver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(),
+            dispatcher = dispatcher,
+            framePreprocessor = { _, _ -> FakeFrame().also { createdFrames.add(it) } },
+            sessionFactory = { failingSession }
+        )
+
+        val outcome = solver.solveWithDiagnostics(dummyImageBytes)
+
+        assertTrue(outcome.result is CaptchaResult.Error)
+        assertEquals(OcrSolveStage.RECOGNIZE, outcome.diagnostics.stage)
+        assertEquals(1, outcome.diagnostics.attemptCount)
+        assertEquals("com.google.mlkit.common.MlKitException", outcome.diagnostics.exceptionType)
+        assertEquals(MlKitException.UNAVAILABLE, outcome.diagnostics.mlKitErrorCode)
+        assertTrue(outcome.diagnostics.causeChain?.contains("mlKitCode=${MlKitException.UNAVAILABLE}") == true)
+        assertTrue(failingSession.closed)
+        assertTrue(createdFrames.all { it.released })
+    }
+
+    @Test
+    fun solveWithDiagnostics_reportsPreprocessExceptionAndTimeoutAndValidationCountsSafely() = runTest {
+        val dispatcher = StandardTestDispatcher(testScheduler)
+        val fakeSession = FakeOcrSession(
+            listOf(
+                OcrOutput("91", listOf(OcrElement("91", 0.90f))),
+                OcrOutput("918", listOf(OcrElement("918", 0.85f))),
+                OcrOutput("91827", listOf(OcrElement("91827", 0.92f)))
+            )
+        )
+
+        val validationSolver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(),
+            dispatcher = dispatcher,
+            framePreprocessor = { _, _ -> FakeFrame() },
+            sessionFactory = { fakeSession }
+        )
+        val validationOutcome = validationSolver.solveWithDiagnostics(dummyImageBytes)
+        assertTrue(validationOutcome.result is CaptchaResult.NotConfident)
+        assertEquals(OcrSolveStage.VALIDATE, validationOutcome.diagnostics.stage)
+        assertEquals(3, validationOutcome.diagnostics.attemptCount)
+        assertEquals("DIGIT_COUNT_MISMATCH", validationOutcome.diagnostics.lastRejectionCode)
+        assertEquals(1, validationOutcome.diagnostics.elementCount)
+        assertEquals(5, validationOutcome.diagnostics.extractedDigitCount)
+        val diagString = validationOutcome.diagnostics.toString()
+        assertFalse("Diagnostics must never contain OCR digits", diagString.contains("91827"))
+
+        val preprocessCrashSolver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(),
+            dispatcher = dispatcher,
+            framePreprocessor = { _, _ -> throw IllegalArgumentException("decode failure") },
+            sessionFactory = { FakeOcrSession(emptyList()) }
+        )
+        val preprocessOutcome = preprocessCrashSolver.solveWithDiagnostics(dummyImageBytes)
+        assertTrue(preprocessOutcome.result is CaptchaResult.Error)
+        assertEquals(OcrSolveStage.PREPROCESS, preprocessOutcome.diagnostics.stage)
+        assertEquals(1, preprocessOutcome.diagnostics.attemptCount)
+
+        val timeoutSession = FakeOcrSession(listOf(OcrOutput("1234")), delayPerCallMs = 5_000L)
+        val timeoutSolver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(timeoutMs = 2_500L),
+            dispatcher = dispatcher,
+            framePreprocessor = { _, _ -> FakeFrame() },
+            sessionFactory = { timeoutSession }
+        )
+        val timeoutOutcome = timeoutSolver.solveWithDiagnostics(dummyImageBytes)
+        assertEquals(OcrSolveStage.TIMEOUT, timeoutOutcome.diagnostics.stage)
+        assertTrue(timeoutOutcome.diagnostics.causeChain?.contains("RECOGNIZE") == true)
+    }
 }
+

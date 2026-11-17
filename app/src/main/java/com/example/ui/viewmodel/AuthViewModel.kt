@@ -6,8 +6,11 @@ import androidx.lifecycle.viewModelScope
 import com.example.data.captcha.solver.CaptchaResult
 import com.example.data.captcha.solver.CaptchaSolver
 import com.example.data.captcha.solver.MlKitCaptchaSolver
+import com.example.data.captcha.solver.OcrDiagnosticReport
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
+import com.example.data.logger.LogEntry
+import com.example.data.logger.LogLevel
 import com.example.data.model.LoginPageState
 import com.example.data.model.UserSession
 import com.example.data.repository.AuthRepository
@@ -625,11 +628,12 @@ class AuthViewModel(
         captchaSolveJob = viewModelScope.launch {
             _isSolvingCaptcha.value = true
             try {
-                val result = getOrCreateCaptchaSolver().solve(imageBytes)
+                val outcome = getOrCreateCaptchaSolver().solveWithDiagnostics(imageBytes)
                 if (!isActive || version != captchaImageVersion) {
                     return@launch
                 }
-                when (result) {
+                logCaptchaOcrOutcome(outcome.result, outcome.diagnostics)
+                when (val result = outcome.result) {
                     is CaptchaResult.Success -> {
                         val validDigits = result.digits.filter { it.isDigit() }.take(4)
                         if (_captchaInput.value.isEmpty() && validDigits.length == 4) {
@@ -652,6 +656,52 @@ class AuthViewModel(
                 if (version == captchaImageVersion) {
                     _isSolvingCaptcha.value = false
                 }
+            }
+        }
+    }
+
+    private fun logCaptchaOcrOutcome(result: CaptchaResult, diag: OcrDiagnosticReport) {
+        when (result) {
+            is CaptchaResult.Success -> {
+                AppLogger.log(
+                    LogEntry(
+                        timestamp = "",
+                        level = LogLevel.INFO,
+                        component = "CaptchaOCR",
+                        operation = "AutoSolveSuccess",
+                        durationMs = diag.elapsedMs,
+                        message = "On-device captcha solved (stage=${diag.stage.name}, attempts=${diag.attemptCount}, elements=${diag.elementCount ?: -1}, elapsedMs=${diag.elapsedMs})"
+                    )
+                )
+            }
+            is CaptchaResult.NotConfident -> {
+                val rejection = diag.lastRejectionCode ?: "UNSPECIFIED"
+                AppLogger.log(
+                    LogEntry(
+                        timestamp = "",
+                        level = LogLevel.WARN,
+                        component = "CaptchaOCR",
+                        operation = "AutoSolveNotConfident",
+                        durationMs = diag.elapsedMs,
+                        errorCategory = "CAPTCHA_OCR_$rejection",
+                        message = "On-device captcha not confident (stage=${diag.stage.name}, reason=$rejection, attempts=${diag.attemptCount}, elements=${diag.elementCount ?: -1}, foundDigitsCount=${diag.extractedDigitCount ?: -1}, elapsedMs=${diag.elapsedMs})"
+                    )
+                )
+            }
+            is CaptchaResult.Error -> {
+                AppLogger.log(
+                    LogEntry(
+                        timestamp = "",
+                        level = LogLevel.WARN,
+                        component = "CaptchaOCR",
+                        operation = "AutoSolveError",
+                        durationMs = diag.elapsedMs,
+                        errorCategory = "CAPTCHA_OCR_${diag.stage.name}",
+                        exceptionType = diag.exceptionType,
+                        exceptionMessage = diag.causeChain,
+                        message = "On-device captcha failed (stage=${diag.stage.name}, attempts=${diag.attemptCount}, mlKitErrorCode=${diag.mlKitErrorCode ?: "none"}, rejection=${diag.lastRejectionCode ?: "none"}, ex=${diag.exceptionType ?: "none"}, elapsedMs=${diag.elapsedMs})"
+                    )
+                )
             }
         }
     }

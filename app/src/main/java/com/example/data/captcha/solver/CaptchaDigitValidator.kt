@@ -18,7 +18,12 @@ data class OcrOutput(
 
 internal sealed class DigitValidationOutcome {
     data class Valid(val digits: String) : DigitValidationOutcome()
-    data class Invalid(val reason: String) : DigitValidationOutcome()
+    data class Invalid(
+        val reason: String,
+        val rejectionCode: String = "INVALID",
+        val elementCount: Int = 0,
+        val extractedDigitCount: Int = 0
+    ) : DigitValidationOutcome()
 }
 
 /**
@@ -71,9 +76,18 @@ internal object CaptchaDigitValidator {
             output.elements.joinToString(" ") { it.text }
         }
         val digits = extractNormalizedDigits(rawCombined)
+        val elementCount = output.elements.size
         if (digits.length != REQUIRED_DIGIT_COUNT) {
+            val code = if (rawCombined.isBlank() && elementCount == 0) {
+                "NO_TEXT_DETECTED"
+            } else {
+                "DIGIT_COUNT_MISMATCH"
+            }
             return DigitValidationOutcome.Invalid(
-                "تعداد ارقام تشخیص‌داده‌شده با طول مورد انتظار ($REQUIRED_DIGIT_COUNT) هم‌خوانی ندارد"
+                reason = "تعداد ارقام تشخیص‌داده‌شده با طول مورد انتظار ($REQUIRED_DIGIT_COUNT) هم‌خوانی ندارد",
+                rejectionCode = code,
+                elementCount = elementCount,
+                extractedDigitCount = digits.length
             )
         }
 
@@ -84,7 +98,10 @@ internal object CaptchaDigitValidator {
                 val conf = element.confidence
                 if (conf != null && !conf.isNaN() && conf < minElementConfidence) {
                     return DigitValidationOutcome.Invalid(
-                        "امتیاز اطمینان یکی از اجزای رقمی کمتر از حد مجاز است"
+                        reason = "امتیاز اطمینان یکی از اجزای رقمی کمتر از حد مجاز است",
+                        rejectionCode = "LOW_ELEMENT_CONFIDENCE",
+                        elementCount = elementCount,
+                        extractedDigitCount = digits.length
                     )
                 }
             }
@@ -93,3 +110,4 @@ internal object CaptchaDigitValidator {
         return DigitValidationOutcome.Valid(digits)
     }
 }
+

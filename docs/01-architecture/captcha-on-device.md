@@ -67,7 +67,10 @@ ML Kit Text Recognition (مدل Bundled Latin — کاملاً آفلاین رو
 
 ### ج) بررسی R8 / ProGuard در بیلد Release
 - تسک‌های Release شامل `:app:minifyReleaseWithR8`، `:app:convertShrunkResourcesToBinaryRelease`، `:app:stripReleaseDebugSymbols` و `:app:lintVitalRelease` با موفقیت کامل اجرا شدند.
-- قوانین نگهداشت مصرف‌کننده (Consumer Rules) داخل کتابخانه `com.google.mlkit:text-recognition` به‌طور خودکار در خروجی ادغام‌شده R8 اعمال می‌شوند (حفظ فیلدهای protobuf مدل در `mlkit_vision_text_bundled_common.zbuf`، انوتیشن‌های `UsedBy*` / `@Keep`، و کلاس‌های `SafeParcelable` / `BasePendingResult`) و هیچ هشدار `missing_rules.txt` تولید نشد.
+- **عیب‌یابی مشکل کار نکردن OCR در بیلد Release (`isMinifyEnabled = true`):**
+  - بررسی خروجی‌های `usage.txt` و `classes.dex` نشان داد کتابخانه `firebase-components:16.1.0` (وابستگی ترنزیتیو ML Kit) تنها قاعده `-keep class * implements com.google.firebase.components.ComponentRegistrar` را بدون `{ <init>(); }` ارائه می‌دهد. در **R8 Full Mode**، سازنده پیش‌فرض (`<init>()`) سه کلاس `CommonComponentRegistrar`، `VisionCommonRegistrar` و `TextRegistrar` از `classes.dex` حذف شده بود و هنگام راه‌اندازی `MlKitContext` از طریق Reflection خطا رخ می‌داد.
+  - برای رفع ریشه‌ای مشکل، در `app/proguard-rules.pro` قواعد صریح نگه‌داشت اضافه شد: حفظ `<init>()` برای تمام `ComponentRegistrar`ها، حفظ فیلدهای `public static` در `ModuleDescriptor`های `dynamite.text.**`، و حفظ کلاس‌های `com.google.mlkit.vision.text.bundled.**`، `NativePipelineImpl`، `PipelineException` و `AndroidAssetUtil`.
+  - همچنین گزارش عیب‌یابی فنی حریم‌خصوصی‌محور (`CaptchaOCR`) در `AppLogger` و فایل ZIP خروجی اضافه شد تا مرحله شکست (`SESSION_INIT` / `PREPROCESS` / `RECOGNIZE` / `VALIDATE` / `TIMEOUT`)، نوع استثنا، کد خطای عددی `MlKitException`، تعداد تلاش‌ها و تعداد اجزا بدون ثبت هیچ رقم یا متن OCR یا بایت تصویر قابل بررسی باشد (پیام ساده کاربر در صفحه ورود تغییر نمی‌کند).
 - نکته: در محیط لوکال که کلید امضای انتشار (`my-upload-key.jks` / متغیر محیطی `KEYSTORE_PATH`) وجود ندارد، صرفاً گام پایانی امضای بسته (`:app:packageRelease`) به کلید انتشار CI وابسته است که در GitHub Actions تأمین می‌شود.
 
 ### د) تحلیل زمان اجرا و پیشنهادهای بهینه‌سازی

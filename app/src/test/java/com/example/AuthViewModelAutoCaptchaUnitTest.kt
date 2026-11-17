@@ -13,10 +13,18 @@ import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performScrollTo
 import androidx.test.core.app.ApplicationProvider
+import com.example.data.captcha.solver.CaptchaFrame
 import com.example.data.captcha.solver.CaptchaResult
 import com.example.data.captcha.solver.CaptchaSolver
+import com.example.data.captcha.solver.CaptchaSolverConfig
+import com.example.data.captcha.solver.MlKitCaptchaSolver
+import com.example.data.captcha.solver.OcrElement
+import com.example.data.captcha.solver.OcrOutput
+import com.example.data.captcha.solver.OcrSession
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
+import com.example.data.logger.LogLevel
+import com.google.mlkit.common.MlKitException
 import com.example.data.model.AppThemeMode
 import com.example.data.network.CullinanHttpClient
 import com.example.data.repository.AuthRepository
@@ -427,9 +435,114 @@ class AuthViewModelAutoCaptchaUnitTest {
         )
 
         awaitCondition { vm.captchaInput.value == "7391" }
-        val allLogs = AppLogger.recentEntries.value.joinToString("\n") { "${it.operation} ${it.message}" }
+        val allLogs = AppLogger.recentEntries.value.joinToString("\n") {
+            "${it.operation} ${it.message} ${it.exceptionMessage.orEmpty()}"
+        }
         assertFalse("Recognized captcha digits must never be logged", allLogs.contains("7391"))
         assertFalse("Raw captcha image content must never be logged", allLogs.contains("SECRET_PNG_BYTES"))
+        assertTrue(AppLogger.recentEntries.value.any { it.component == "CaptchaOCR" && it.operation == "AutoSolveSuccess" })
+    }
+
+    @Test
+    fun whenMlKitFails_logsTechnicalDiagnosticsToAppLoggerOnly_andKeepsSimpleUserHint() {
+        val prefs = createPrefs(autoCaptchaEnabled = true)
+        val imgBytes = "FAILING_CAPTCHA_IMAGE".toByteArray()
+        server.enqueue(MockResponse().setResponseCode(200).setBody(loginPageHtml()))
+        server.enqueue(binaryCaptchaResponse(imgBytes))
+
+        val solver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(),
+            dispatcher = testDispatcher,
+            framePreprocessor = { _, _ ->
+                object : CaptchaFrame {
+                    override fun release() {}
+                }
+            },
+            sessionFactory = {
+                object : OcrSession {
+                    override suspend fun recognize(frame: CaptchaFrame): OcrOutput {
+                        throw MlKitException("Waiting for the text optional module", MlKitException.UNAVAILABLE)
+                    }
+                    override fun close() {}
+                }
+            }
+        )
+
+        val vm = AuthViewModel(
+            application = context,
+            authRepository = AuthRepository(),
+            userPrefs = prefs,
+            biometricCapabilityChecker = BiometricCapabilityChecker { true },
+            captchaSolverFactory = { solver }
+        )
+
+        awaitCondition { vm.captchaSoftMessage.value == AuthViewModel.CAPTCHA_SOLVE_FAILED_MESSAGE && !vm.isSolvingCaptcha.value }
+        // User-facing soft hint remains simple and non-technical
+        assertEquals(AuthViewModel.CAPTCHA_SOLVE_FAILED_MESSAGE, vm.captchaSoftMessage.value)
+        assertEquals("", vm.captchaInput.value)
+
+        // Developer logs contain technical root cause (stage, mlKitErrorCode, exceptionType, attempts)
+        val diagEntry = AppLogger.recentEntries.value.firstOrNull {
+            it.component == "CaptchaOCR" && it.operation == "AutoSolveError"
+        }
+        assertTrue("Expected CaptchaOCR AutoSolveError log entry", diagEntry != null)
+        assertEquals(LogLevel.WARN, diagEntry!!.level)
+        assertEquals("CAPTCHA_OCR_RECOGNIZE", diagEntry.errorCategory)
+        assertEquals("com.google.mlkit.common.MlKitException", diagEntry.exceptionType)
+        assertTrue(diagEntry.message.contains("stage=RECOGNIZE"))
+        assertTrue(diagEntry.message.contains("mlKitErrorCode=${MlKitException.UNAVAILABLE}"))
+        assertTrue(diagEntry.message.contains("attempts=1"))
+        assertTrue(diagEntry.exceptionMessage?.contains("MlKitException") == true)
+
+        val exportedText = AppLogger.getExportableText()
+        assertFalse(exportedText.contains("FAILING_CAPTCHA_IMAGE"))
+        assertTrue(exportedText.contains("CaptchaOCR/AutoSolveError"))
+    }
+
+    @Test
+    fun whenOcrNotConfident_logsStageAndCountsWithoutLeakingRecognizedTextOrDigits() {
+        val prefs = createPrefs(autoCaptchaEnabled = true)
+        val imgBytes = byteArrayOf(1, 2, 3, 4)
+        server.enqueue(MockResponse().setResponseCode(200).setBody(loginPageHtml()))
+        server.enqueue(binaryCaptchaResponse(imgBytes))
+
+        val solver = MlKitCaptchaSolver(
+            solverConfig = CaptchaSolverConfig(),
+            dispatcher = testDispatcher,
+            framePreprocessor = { _, _ ->
+                object : CaptchaFrame {
+                    override fun release() {}
+                }
+            },
+            sessionFactory = {
+                object : OcrSession {
+                    override suspend fun recognize(frame: CaptchaFrame): OcrOutput =
+                        OcrOutput("84629", listOf(OcrElement("84629", 0.91f)))
+                    override fun close() {}
+                }
+            }
+        )
+
+        val vm = AuthViewModel(
+            application = context,
+            authRepository = AuthRepository(),
+            userPrefs = prefs,
+            biometricCapabilityChecker = BiometricCapabilityChecker { true },
+            captchaSolverFactory = { solver }
+        )
+
+        awaitCondition { vm.captchaSoftMessage.value == AuthViewModel.CAPTCHA_SOLVE_FAILED_MESSAGE && !vm.isSolvingCaptcha.value }
+        val diagEntry = AppLogger.recentEntries.value.firstOrNull {
+            it.component == "CaptchaOCR" && it.operation == "AutoSolveNotConfident"
+        }
+        assertTrue("Expected CaptchaOCR AutoSolveNotConfident log entry", diagEntry != null)
+        assertEquals("CAPTCHA_OCR_DIGIT_COUNT_MISMATCH", diagEntry!!.errorCategory)
+        assertTrue(diagEntry.message.contains("stage=VALIDATE"))
+        assertTrue(diagEntry.message.contains("attempts=3"))
+        assertTrue(diagEntry.message.contains("elements=1"))
+        assertTrue(diagEntry.message.contains("foundDigitsCount=5"))
+        assertFalse("Recognized OCR digits must NEVER appear in logs", diagEntry.message.contains("84629"))
+        assertFalse("Recognized OCR digits must NEVER appear in exception field", diagEntry.exceptionMessage.orEmpty().contains("84629"))
     }
 
     @Test
