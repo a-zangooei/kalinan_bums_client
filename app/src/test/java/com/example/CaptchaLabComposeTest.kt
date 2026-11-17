@@ -189,8 +189,9 @@ class CaptchaLabComposeTest {
         composeRule.onNodeWithTag("captcha_lab_clear_all_button").performClick()
         composeRule.onNodeWithTag("captcha_lab_confirm_clear_button").performClick()
 
-        composeRule.waitForIdle()
-        assertTrue(repo.records.value.isEmpty())
+        composeRule.waitUntil(timeoutMillis = 5_000L) {
+            repo.records.value.isEmpty()
+        }
     }
 
     @Test
@@ -299,18 +300,20 @@ class CaptchaLabComposeTest {
         }
 
         // Leaderboard and Best Stage banner + Batch OCR trigger + per-card OCR button
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("stage_compatibility_leaderboard_card"))
         composeRule.onNodeWithTag("stage_compatibility_leaderboard_card").assertIsDisplayed()
-        composeRule.onNodeWithTag("stage_leaderboard_best_banner").assertIsDisplayed()
-        composeRule.onNodeWithTag("stage_leaderboard_toggle_expand_button").performClick()
-        composeRule.onNodeWithTag("stage_leaderboard_row_DENOISED").assertIsDisplayed()
-        composeRule.onNodeWithTag("stage_leaderboard_toggle_expand_button").performClick()
+        composeRule.onNodeWithTag("stage_leaderboard_best_banner").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("stage_leaderboard_toggle_expand_button").performScrollTo().performClick()
+        composeRule.onNodeWithTag("stage_leaderboard_row_DENOISED").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("stage_leaderboard_toggle_expand_button").performScrollTo().performClick()
 
         composeRule.onNodeWithTag("captcha_lab_main_list")
             .performScrollToNode(hasTestTag("captcha_lab_batch_ocr_button"))
         composeRule.onNodeWithTag("captcha_lab_batch_ocr_button").assertIsDisplayed()
         composeRule.onNodeWithTag("captcha_lab_main_list")
             .performScrollToNode(hasTestTag("captcha_lab_record_bench_ui_cap_1"))
-        composeRule.onNodeWithTag("captcha_lab_run_ocr_bench_ui_cap_1").assertIsDisplayed()
+        composeRule.onNodeWithTag("captcha_lab_run_ocr_bench_ui_cap_1").performScrollTo().assertIsDisplayed()
 
         // Selecting FAILED filter triggers batch scope dialog
         composeRule.onNodeWithTag("captcha_lab_main_list")
@@ -333,9 +336,10 @@ class CaptchaLabComposeTest {
         composeRule.onNodeWithTag("captcha_detail_run_stage_ocr_button").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("captcha_detail_expected_digits_input").performScrollTo().performTextReplacement("4829")
         composeRule.onNodeWithTag("captcha_detail_save_expected_digits_button").performScrollTo().performClick()
+        composeRule.waitUntil(timeoutMillis = 5_000L) {
+            repo.records.value.firstOrNull()?.expectedDigits == "4829"
+        }
         composeRule.waitForIdle()
-
-        assertTrue(repo.records.value.first().expectedDigits == "4829")
         composeRule.onNodeWithTag("stage_benchmark_target_RAW").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("stage_benchmark_target_DENOISED").performScrollTo().assertIsDisplayed()
     }
