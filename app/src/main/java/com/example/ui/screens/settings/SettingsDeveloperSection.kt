@@ -16,6 +16,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.BugReport
 import androidx.compose.material.icons.filled.DeleteSweep
 import androidx.compose.material.icons.filled.FolderZip
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -24,6 +25,7 @@ import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
@@ -45,7 +47,10 @@ internal fun DeveloperToolsSection(
     onOpenLogs: () -> Unit,
     onExportZip: () -> Unit,
     onClearLogs: () -> Unit,
-    onExitDeveloperMode: () -> Unit
+    onExitDeveloperMode: () -> Unit,
+    onOpenCaptchaLab: () -> Unit = {},
+    isCaptchaLabArchivingActive: Boolean = false,
+    captchaLabArchivedCount: Int = 0
 ) {
     Column {
         SettingsSectionTitle(
@@ -107,6 +112,52 @@ internal fun DeveloperToolsSection(
 
                 Spacer(modifier = Modifier.height(10.dp))
 
+                OutlinedButton(
+                    onClick = onOpenCaptchaLab,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = 48.dp)
+                        .testTag("open_captcha_lab_button"),
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(
+                        1.dp,
+                        if (isCaptchaLabArchivingActive) TealPrimary else MaterialTheme.colorScheme.outline
+                    )
+                ) {
+                    Icon(
+                        Icons.Default.Science,
+                        contentDescription = null,
+                        tint = TealPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "آزمایشگاه کپچا ($captchaLabArchivedCount)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    Surface(
+                        shape = RoundedCornerShape(6.dp),
+                        color = if (isCaptchaLabArchivingActive) {
+                            TealPrimary.copy(alpha = 0.16f)
+                        } else {
+                            MaterialTheme.colorScheme.surfaceVariant
+                        }
+                    ) {
+                        Text(
+                            text = if (isCaptchaLabArchivingActive) "بایگانی فعال" else "خاموش",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isCaptchaLabArchivingActive) TealPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
@@ -143,7 +194,10 @@ private fun SettingsDeveloperLightPreview() {
                     onOpenLogs = {},
                     onExportZip = {},
                     onClearLogs = {},
-                    onExitDeveloperMode = {}
+                    onExitDeveloperMode = {},
+                    onOpenCaptchaLab = {},
+                    isCaptchaLabArchivingActive = true,
+                    captchaLabArchivedCount = 12
                 )
             }
         }
@@ -160,7 +214,10 @@ private fun SettingsDeveloperDarkPreview() {
                     onOpenLogs = {},
                     onExportZip = {},
                     onClearLogs = {},
-                    onExitDeveloperMode = {}
+                    onExitDeveloperMode = {},
+                    onOpenCaptchaLab = {},
+                    isCaptchaLabArchivingActive = false,
+                    captchaLabArchivedCount = 0
                 )
             }
         }

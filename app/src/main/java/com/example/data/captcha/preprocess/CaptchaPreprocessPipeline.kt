@@ -71,6 +71,89 @@ object CaptchaPreprocessPipeline {
     }
 
     /**
+     * نتیجه کامل اجرای مرحله‌به‌مرحله خط لوله پیش‌پردازش برای استفاده اختصاصی آزمایشگاه کپچا.
+     */
+    internal data class PipelineStageTrace(
+        val grayscale: GrayscaleImage,
+        val contrastEnhanced: GrayscaleImage? = null,
+        val thresholded: GrayscaleImage? = null,
+        val denoised: GrayscaleImage? = null,
+        val inverted: GrayscaleImage? = null,
+        val invertSkipped: Boolean = false,
+        val upscaled: GrayscaleImage? = null,
+        val finalPadded: GrayscaleImage? = null,
+        val failedStageName: String? = null,
+        val failureReason: String? = null
+    )
+
+    /**
+     * اجرای دقیقاً مشابه [process] با نگهداری تصویر هر مرحله برای بایگانی آزمایشگاه کپچا.
+     */
+    internal fun processWithStages(
+        image: GrayscaleImage,
+        config: PreprocessConfig = PreprocessConfig()
+    ): PipelineStageTrace {
+        if (!config.isValid()) {
+            return PipelineStageTrace(
+                grayscale = image,
+                failedStageName = "CONFIG_VALIDATION",
+                failureReason = "Invalid PreprocessConfig parameters"
+            )
+        }
+        if (image.width < config.minDimensionPx || image.height < config.minDimensionPx) {
+            return PipelineStageTrace(
+                grayscale = image,
+                failedStageName = "DIMENSION_VALIDATION",
+                failureReason = "Image dimensions (${image.width}x${image.height}) below minDimensionPx=${config.minDimensionPx}"
+            )
+        }
+        if (image.width > config.maxDimensionPx || image.height > config.maxDimensionPx) {
+            return PipelineStageTrace(
+                grayscale = image,
+                failedStageName = "DIMENSION_VALIDATION",
+                failureReason = "Image dimensions (${image.width}x${image.height}) exceed maxDimensionPx=${config.maxDimensionPx}"
+            )
+        }
+
+        val contrasted = stretchContrast(image, config.contrastClipPercent)
+        val thresholded = applyThreshold(
+            image = contrasted,
+            mode = config.thresholdMode,
+            fixedThreshold = config.fixedThreshold
+        )
+        val denoised = removeNoise(
+            image = thresholded,
+            mode = config.noiseRemovalMode,
+            kernelSize = config.filterSize
+        )
+        val invertSkipped = !config.invertOutput
+        val invertedOrNull = if (config.invertOutput) invert(denoised) else null
+        val polarized = invertedOrNull ?: denoised
+        val upscaled = upscaleNearestNeighbor(polarized, config.scaleFactor)
+            ?: return PipelineStageTrace(
+                grayscale = image,
+                contrastEnhanced = contrasted,
+                thresholded = thresholded,
+                denoised = denoised,
+                inverted = invertedOrNull,
+                invertSkipped = invertSkipped,
+                failedStageName = "UPSCALED",
+                failureReason = "Upscale failed for scaleFactor=${config.scaleFactor} on ${polarized.width}x${polarized.height}"
+            )
+        val finalPadded = addWhiteBorder(upscaled, config.borderPaddingPx)
+        return PipelineStageTrace(
+            grayscale = image,
+            contrastEnhanced = contrasted,
+            thresholded = thresholded,
+            denoised = denoised,
+            inverted = invertedOrNull,
+            invertSkipped = invertSkipped,
+            upscaled = upscaled,
+            finalPadded = finalPadded
+        )
+    }
+
+    /**
      * کشش خطی کنتراست با برش درصدی ملایم در دو انتهای هیستوگرام برای پایداری در برابر پیکسل‌های تک‌افتاده نویزی.
      */
     fun stretchContrast(

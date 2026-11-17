@@ -66,6 +66,7 @@ class MainActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         AppLogger.init(applicationContext)
         AppLogger.installCrashHandler(applicationContext)
+        com.example.data.captcha.lab.CaptchaLabController.init(applicationContext)
         AppLogger.logAction("Application Started")
 
         enableEdgeToEdge()

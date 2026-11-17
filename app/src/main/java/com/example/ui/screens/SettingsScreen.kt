@@ -44,6 +44,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
+import com.example.data.captcha.lab.CaptchaLabController
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
 import com.example.data.model.AppThemeMode
@@ -55,6 +56,7 @@ import com.example.ui.components.DeveloperLogsDialog
 import com.example.ui.components.LogSharePreviewDialog
 import com.example.ui.components.PersianRtlLayout
 import com.example.ui.components.shareDiagnosticZip
+import com.example.ui.screens.captchalab.CaptchaLabScreen
 import com.example.ui.screens.settings.AboutVersionSection
 import com.example.ui.screens.settings.AutoCaptchaSettingsSection
 import com.example.ui.screens.settings.DeveloperToolsSection
@@ -85,6 +87,11 @@ fun SettingsScreen(
     var tapCounter by remember { mutableIntStateOf(0) }
     var showLogsDialog by remember { mutableStateOf(false) }
     var showSharePreviewDialog by remember { mutableStateOf(false) }
+    var showCaptchaLab by remember { mutableStateOf(false) }
+
+    val captchaLabRepo = remember(context) { CaptchaLabController.getRepository(context) }
+    val isCaptchaLabArchiving by CaptchaLabController.isArchivingEnabled.collectAsStateWithLifecycle()
+    val captchaLabRecords by captchaLabRepo.records.collectAsStateWithLifecycle()
 
     DisposableEffect(lifecycleOwner, context, userPrefs) {
         val observer = LifecycleEventObserver { _, event ->
@@ -174,6 +181,8 @@ fun SettingsScreen(
         onExitDeveloperMode = {
             isDevUnlocked = false
             userPrefs.isDeveloperModeUnlocked = false
+            CaptchaLabController.setArchivingEnabled(false)
+            showCaptchaLab = false
             tapCounter = 0
             Toast.makeText(context, "بخش عیب‌یابی و توسعه‌دهنده غیرفعال شد.", Toast.LENGTH_SHORT).show()
         },
@@ -200,8 +209,16 @@ fun SettingsScreen(
             userPrefs.isAutoCaptchaEnabled = enable
             isAutoCaptchaEnabled = enable
             onSecuritySettingsChanged?.invoke()
-        }
+        },
+        onOpenCaptchaLab = { showCaptchaLab = true },
+        isCaptchaLabArchivingActive = isCaptchaLabArchiving,
+        captchaLabArchivedCount = captchaLabRecords.size
     )
+
+    // Dedicated Full-Screen Captcha Lab
+    if (showCaptchaLab) {
+        CaptchaLabScreen(onDismiss = { showCaptchaLab = false })
+    }
 
     // Logs Dialog
     if (showLogsDialog) {
@@ -249,7 +266,10 @@ internal fun SettingsScreenContent(
     onCheckForUpdates: (() -> Unit)?,
     modifier: Modifier = Modifier,
     isAutoCaptchaEnabled: Boolean = false,
-    onToggleAutoCaptcha: (Boolean) -> Unit = {}
+    onToggleAutoCaptcha: (Boolean) -> Unit = {},
+    onOpenCaptchaLab: () -> Unit = {},
+    isCaptchaLabArchivingActive: Boolean = false,
+    captchaLabArchivedCount: Int = 0
 ) {
     PersianRtlLayout {
         Scaffold(
@@ -329,7 +349,10 @@ internal fun SettingsScreenContent(
                             onOpenLogs = onOpenLogs,
                             onExportZip = onExportZip,
                             onClearLogs = onClearLogs,
-                            onExitDeveloperMode = onExitDeveloperMode
+                            onExitDeveloperMode = onExitDeveloperMode,
+                            onOpenCaptchaLab = onOpenCaptchaLab,
+                            isCaptchaLabArchivingActive = isCaptchaLabArchivingActive,
+                            captchaLabArchivedCount = captchaLabArchivedCount
                         )
                         Spacer(modifier = Modifier.height(20.dp))
                     }
