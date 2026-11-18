@@ -33,6 +33,7 @@ import com.example.ui.screens.captchalab.CaptchaLabScreen
 import com.example.ui.screens.settings.DeveloperToolsSection
 import com.example.ui.theme.CullinanTheme
 import kotlinx.coroutines.runBlocking
+import org.junit.After
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
@@ -55,9 +56,15 @@ class CaptchaLabComposeTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         CaptchaLabController.init(context)
+        CaptchaLabController.setArchivingEnabled(false)
         runBlocking {
             CaptchaLabController.getRepository(context).clearAll()
         }
+    }
+
+    @After
+    fun tearDown() {
+        CaptchaLabController.setArchivingEnabled(false)
     }
 
     @Test

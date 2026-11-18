@@ -1,4 +1,23 @@
 // import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import org.gradle.api.file.DirectoryProperty
+import org.gradle.api.tasks.InputDirectory
+import org.gradle.api.tasks.PathSensitive
+import org.gradle.api.tasks.PathSensitivity
+import org.gradle.process.CommandLineArgumentProvider
+
+abstract class RobolectricSdkArgumentProvider : CommandLineArgumentProvider {
+  @get:InputDirectory
+  @get:PathSensitive(PathSensitivity.RELATIVE)
+  abstract val sdkDir: DirectoryProperty
+
+  override fun asArguments(): Iterable<String> {
+    val path = sdkDir.get().asFile.absolutePath
+    return listOf(
+      "-Drobolectric.offline=true",
+      "-Drobolectric.dependency.dir=$path",
+    )
+  }
+}
 
 plugins {
   alias(libs.plugins.android.application)
@@ -6,6 +25,17 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.secrets)
   // alias(libs.plugins.google.services)
+}
+
+val robolectricSdkDir = layout.buildDirectory.dir("robolectric-sdks")
+val robolectricSdk by configurations.creating {
+  isCanBeConsumed = false
+  isCanBeResolved = true
+  isTransitive = false
+}
+val prepareRobolectricSdks by tasks.registering(Sync::class) {
+  from(robolectricSdk)
+  into(robolectricSdkDir)
 }
 
 android {
@@ -76,6 +106,14 @@ android {
     unitTests {
       isIncludeAndroidResources = true
       isReturnDefaultValues = true
+      all { testTask ->
+        testTask.dependsOn(prepareRobolectricSdks)
+        testTask.jvmArgumentProviders.add(
+          objects.newInstance(RobolectricSdkArgumentProvider::class.java).apply {
+            sdkDir.set(robolectricSdkDir)
+          }
+        )
+      }
     }
   }
   dependenciesInfo {
@@ -157,6 +195,7 @@ dependencies {
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation(libs.robolectric)
+  robolectricSdk(libs.robolectric.android14)
   testImplementation(libs.mockwebserver)
   testImplementation("org.json:json:20240303")
   androidTestImplementation(platform(libs.androidx.compose.bom))

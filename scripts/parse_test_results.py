@@ -2,6 +2,19 @@ import os
 import glob
 import xml.etree.ElementTree as ET
 
+def _extract_failure_summary(testcase):
+    for tag in ("failure", "error"):
+        node = testcase.find(tag)
+        if node is not None:
+            msg = (node.attrib.get("message") or "").strip()
+            body_lines = [line.strip() for line in (node.text or "").splitlines() if line.strip()]
+            first_line = body_lines[0] if body_lines else ""
+            detail = msg or first_line or node.attrib.get("type", tag)
+            if len(detail) > 260:
+                detail = detail[:257] + "..."
+            return detail.replace("|", "\\|").replace("\n", " ")
+    return None
+
 def parse_and_report():
     xml_files = sorted(glob.glob('app/build/test-results/testDebugUnitTest/*.xml'))
     total_tests = 0
@@ -10,6 +23,7 @@ def parse_and_report():
     total_skipped = 0
     total_time = 0.0
     suite_details = []
+    failed_cases = []
 
     for file_path in xml_files:
         try:
@@ -29,6 +43,12 @@ def parse_and_report():
             total_skipped += s
             total_time += tm
 
+            for tc in root.findall('testcase'):
+                failure_detail = _extract_failure_summary(tc)
+                if failure_detail is not None:
+                    tc_name = tc.attrib.get('name', 'unknown')
+                    failed_cases.append((short_name, tc_name, failure_detail))
+
             status = "✅ پاس شد" if (f == 0 and e == 0) else "❌ خطا"
             suite_details.append(f"| `{short_name}` | {t} | {t - f - e - s} | {f + e} | {s} | {tm:.2f}s | {status} |")
         except Exception as err:
@@ -36,6 +56,12 @@ def parse_and_report():
 
     success_count = total_tests - total_failures - total_errors - total_skipped
     success_rate = (success_count / total_tests * 100) if total_tests > 0 else 0
+
+    print(f"Unit Tests: {success_count}/{total_tests} passed, {total_failures + total_errors} failed, {total_skipped} skipped ({total_time:.2f}s)")
+    if failed_cases:
+        print("Failed test cases:")
+        for suite_name, case_name, detail in failed_cases:
+            print(f" - {suite_name} > {case_name}: {detail}")
 
     summary_path = os.environ.get('GITHUB_STEP_SUMMARY')
     if summary_path:
@@ -46,6 +72,12 @@ def parse_and_report():
             out.write(f"- **ناموفق (Failed):** `{total_failures + total_errors}` مورد\n")
             out.write(f"- **نادیده‌گرفته‌شده (Skipped):** `{total_skipped}` مورد\n")
             out.write(f"- **زمان کل اجرا:** `{total_time:.2f}` ثانیه\n\n")
+
+            if failed_cases:
+                out.write("### ❌ جزئیات تست‌های ناموفق\n\n")
+                for suite_name, case_name, detail in failed_cases:
+                    out.write(f"- **`{suite_name}.{case_name}`**: `{detail}`\n")
+                out.write("\n")
 
             out.write("| کلاس آزمون (Test Suite) | کل تست‌ها | موفق | ناموفق | ردشده | مدت‌زمان | وضعیت |\n")
             out.write("|---|:---:|:---:|:---:|:---:|:---:|:---:|\n")
