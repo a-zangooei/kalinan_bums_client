@@ -169,6 +169,39 @@ class CaptchaPreprocessPipelineUnitTest {
     }
 
     @Test
+    fun thresholdModeNone_preservesContinuousGrayscaleAndMarksTraceSkipped() {
+        val w = 12
+        val h = 10
+        val grad = GrayscaleImage(w, h, IntArray(w * h) { idx -> 60 + ((idx % w) * 14) })
+        val nonBinaryCfg = PreprocessConfig(
+            useDecodedColorFrame = false,
+            contrastClipPercent = 0.02f,
+            thresholdMode = ThresholdMode.NONE,
+            noiseRemovalMode = NoiseRemovalMode.NONE,
+            invertOutput = false,
+            scaleFactor = 1,
+            borderPaddingPx = 0
+        )
+
+        val processed = CaptchaPreprocessPipeline.process(grad, nonBinaryCfg)
+        assertNotNull(processed)
+        processed!!
+        assertEquals(w, processed.width)
+        assertEquals(h, processed.height)
+        // Continuous intermediate grayscale shades must survive (not clamped strictly to {0, 255})
+        assertTrue(processed.pixels.any { it in 1..254 })
+
+        val traced = CaptchaPreprocessPipeline.processWithStages(grad, nonBinaryCfg)
+        assertEquals(processed, traced.finalPadded)
+        assertTrue(traced.thresholdSkipped)
+        assertTrue(traced.denoiseSkipped)
+        assertTrue(traced.invertSkipped)
+        assertNull(traced.thresholded)
+        assertNull(traced.denoised)
+        assertNull(traced.inverted)
+    }
+
+    @Test
     fun invalidCorruptEmptyAndUndersizedInputs_returnNullSafelyWithoutCrashing() {
         assertNull(CaptchaPreprocessor.preprocess(ByteArray(0)))
         assertNull(CaptchaPreprocessor.preprocess("not-a-valid-image-payload".toByteArray()))

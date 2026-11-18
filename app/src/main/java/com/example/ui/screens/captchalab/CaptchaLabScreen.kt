@@ -26,6 +26,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.CompareArrows
 import androidx.compose.material.icons.filled.BrokenImage
 import androidx.compose.material.icons.filled.DeleteOutline
 import androidx.compose.material.icons.filled.DeleteSweep
@@ -110,6 +111,8 @@ fun CaptchaLabScreen(
     val isArchivingEnabled by CaptchaLabController.isArchivingEnabled.collectAsStateWithLifecycle()
     val batchProgress by CaptchaLabController.batchProgress.collectAsStateWithLifecycle()
     val activeSingleIds by CaptchaLabController.activeSingleBenchmarkIds.collectAsStateWithLifecycle()
+    val simulationProgress by CaptchaLabController.simulationProgress.collectAsStateWithLifecycle()
+    val simulationReport by CaptchaLabController.simulationReport.collectAsStateWithLifecycle()
 
     LaunchedEffect(repository) {
         repository.ensureLoaded()
@@ -120,7 +123,7 @@ fun CaptchaLabScreen(
     var selectedRecordId by remember { mutableStateOf<String?>(null) }
     var comparisonRequest by remember { mutableStateOf<CaptchaComparisonRequest?>(null) }
     var showClearConfirm by remember { mutableStateOf(false) }
-    var showBatchScopeDialog by remember { mutableStateOf(false) }
+    var batchScopePurpose by remember { mutableStateOf<String?>(null) }
 
     val selectedRecord = remember(records, selectedRecordId) {
         selectedRecordId?.let { id -> records.firstOrNull { it.captchaId == id } }
@@ -170,7 +173,7 @@ fun CaptchaLabScreen(
                     CaptchaLabDetailView(
                         repository = repository,
                         record = selectedRecord,
-                        isBenchmarkRunning = isSingleRunning || batchProgress.isRunning,
+                        isBenchmarkRunning = isSingleRunning || batchProgress.isRunning || simulationProgress.isRunning,
                         onRunStageBenchmark = { attemptNum ->
                             CaptchaLabController.runSingleBenchmarkAsync(
                                 context = context,
@@ -212,7 +215,10 @@ fun CaptchaLabScreen(
                     val compatibilitySummary = remember(records) {
                         CaptchaStageBenchmarkEngine.analyzeCompatibility(records)
                     }
-                    val startBatchOn: (List<com.example.data.captcha.lab.CaptchaLabRecord>, String) -> Unit = { list, label ->
+                    val labeledCount = remember(records) {
+                        records.count { !it.expectedDigits.isNullOrBlank() }
+                    }
+                    val startBatchOn: (List<CaptchaLabRecord>, String) -> Unit = { list, label ->
                         CaptchaLabController.startBatchBenchmark(context, list, label) { count, cancelled ->
                             val msg = if (cancelled) {
                                 "اجرای انبوه متوقف شد ($count کپچا ثبت شد)."
@@ -222,11 +228,30 @@ fun CaptchaLabScreen(
                             Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
                         }
                     }
+                    val startSimulationOn: (List<CaptchaLabRecord>, String) -> Unit = { list, label ->
+                        CaptchaLabController.startSolverSimulation(context, list, label) { report ->
+                            if (report != null) {
+                                val msg = if (report.cancelled) {
+                                    "شبیه‌سازی متوقف شد (${report.evaluatedCount} کپچا ارزیابی شد)."
+                                } else {
+                                    "شبیه‌سازی تکمیل شد: نرخ موفقیت ${report.simulated.successRatePercent}%"
+                                }
+                                Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                    }
                     val triggerBatchClick: () -> Unit = {
                         if (activeFilter == CaptchaLabFilter.ALL) {
                             startBatchOn(records, "همه کپچاها")
                         } else {
-                            showBatchScopeDialog = true
+                            batchScopePurpose = "BENCHMARK"
+                        }
+                    }
+                    val triggerSimulateClick: () -> Unit = {
+                        if (activeFilter == CaptchaLabFilter.ALL) {
+                            startSimulationOn(records, "همه کپچاها")
+                        } else {
+                            batchScopePurpose = "SIMULATION"
                         }
                     }
 
@@ -344,35 +369,84 @@ fun CaptchaLabScreen(
                                     }
                                 }
 
+                                if (simulationProgress.isRunning) {
+                                    item {
+                                        SolverSimulationProgressCard(
+                                            progress = simulationProgress,
+                                            onCancel = { CaptchaLabController.cancelSolverSimulation() }
+                                        )
+                                    }
+                                }
+
+                                simulationReport?.let { simReport ->
+                                    item {
+                                        SolverSimulationComparisonCard(
+                                            report = simReport,
+                                            onDismiss = { CaptchaLabController.clearSolverSimulationReport() }
+                                        )
+                                    }
+                                }
+
                                 if (records.isNotEmpty()) {
                                     item {
-                                        OutlinedButton(
-                                            onClick = triggerBatchClick,
-                                            enabled = !batchProgress.isRunning,
-                                            shape = RoundedCornerShape(10.dp),
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .heightIn(min = 48.dp)
-                                                .testTag("captcha_lab_batch_ocr_button")
-                                        ) {
-                                            Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
-                                            Spacer(modifier = Modifier.width(6.dp))
-                                            Text(
-                                                text = if (activeFilter == CaptchaLabFilter.ALL) {
-                                                    "اجرای انبوه OCR خام + ۸ مرحله (${records.size} کپچا)"
-                                                } else {
-                                                    "اجرای انبوه OCR (انتخاب محدوده)"
-                                                },
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold
-                                            )
+                                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                            OutlinedButton(
+                                                onClick = triggerSimulateClick,
+                                                enabled = !batchProgress.isRunning && !simulationProgress.isRunning,
+                                                shape = RoundedCornerShape(10.dp),
+                                                border = BorderStroke(1.dp, TealPrimary),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(min = 48.dp)
+                                                    .testTag("captcha_lab_simulate_solver_button")
+                                            ) {
+                                                Icon(
+                                                    Icons.AutoMirrored.Filled.CompareArrows,
+                                                    contentDescription = null,
+                                                    tint = TealPrimary,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = if (activeFilter == CaptchaLabFilter.ALL) {
+                                                        "شبیه‌سازی حل‌گر جدید روی آرشیو (${records.size} کپچا)"
+                                                    } else {
+                                                        "شبیه‌سازی حل‌گر جدید (انتخاب محدوده)"
+                                                    },
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = TealPrimary
+                                                )
+                                            }
+
+                                            OutlinedButton(
+                                                onClick = triggerBatchClick,
+                                                enabled = !batchProgress.isRunning && !simulationProgress.isRunning,
+                                                shape = RoundedCornerShape(10.dp),
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .heightIn(min = 48.dp)
+                                                    .testTag("captcha_lab_batch_ocr_button")
+                                            ) {
+                                                Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text(
+                                                    text = if (activeFilter == CaptchaLabFilter.ALL) {
+                                                        "اجرای انبوه OCR خام + ۸ مرحله (${records.size} کپچا)"
+                                                    } else {
+                                                        "اجرای انبوه OCR (انتخاب محدوده)"
+                                                    },
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold
+                                                )
+                                            }
                                         }
                                     }
 
                                     item {
                                         StageCompatibilityLeaderboardCard(
                                             summary = compatibilitySummary,
-                                            isBatchRunning = batchProgress.isRunning,
+                                            isBatchRunning = batchProgress.isRunning || simulationProgress.isRunning,
                                             onRunBatchClick = triggerBatchClick
                                         )
                                     }
@@ -380,6 +454,14 @@ fun CaptchaLabScreen(
 
                                 item {
                                     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                        if (records.isNotEmpty()) {
+                                            Text(
+                                                text = "برچسب صحیح ثبت‌شده: $labeledCount از ${records.size} • بدون برچسب: ${records.size - labeledCount}",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                modifier = Modifier.testTag("captcha_lab_labeled_counter")
+                                            )
+                                        }
                                         LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                                             items(CaptchaLabFilter.entries, key = { it.name }) { filter ->
                                                 FilterChip(
@@ -419,7 +501,7 @@ fun CaptchaLabScreen(
                                             repository = repository,
                                             record = record,
                                             isBenchmarkRunning = isSingleRunning,
-                                            batchRunning = batchProgress.isRunning,
+                                            batchRunning = batchProgress.isRunning || simulationProgress.isRunning,
                                             onRunSingleOcr = {
                                                 CaptchaLabController.runSingleBenchmarkAsync(context, record.captchaId) { result ->
                                                     if (result != null) {
@@ -438,21 +520,36 @@ fun CaptchaLabScreen(
                         }
                     }
 
-                    if (showBatchScopeDialog) {
+                    batchScopePurpose?.let { purpose ->
+                        val isSim = purpose == "SIMULATION"
                         AlertDialog(
-                            onDismissRequest = { showBatchScopeDialog = false },
-                            title = { Text("انتخاب محدوده اجرای انبوه OCR", fontWeight = FontWeight.Bold, fontSize = 15.sp) },
+                            onDismissRequest = { batchScopePurpose = null },
+                            title = {
+                                Text(
+                                    text = if (isSim) "انتخاب محدوده شبیه‌سازی حل‌گر" else "انتخاب محدوده اجرای انبوه OCR",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 15.sp
+                                )
+                            },
                             text = {
                                 Text(
-                                    text = "آیا OCR روی تصویر خام + ۸ مرحله پیش‌پردازش برای فهرست فیلترشده (${displayedRecords.size} کپچا) اجرا شود یا برای کل آرشیو (${records.size} کپچا)؟",
+                                    text = if (isSim) {
+                                        "شبیه‌سازی حل‌گر جدید روی بایت‌های خام فهرست فیلترشده (${displayedRecords.size} کپچا) اجرا شود یا برای کل آرشیو (${records.size} کپچا)؟"
+                                    } else {
+                                        "آیا OCR روی تصویر خام + ۸ مرحله پیش‌پردازش برای فهرست فیلترشده (${displayedRecords.size} کپچا) اجرا شود یا برای کل آرشیو (${records.size} کپچا)؟"
+                                    },
                                     fontSize = 12.sp
                                 )
                             },
                             confirmButton = {
                                 TextButton(
                                     onClick = {
-                                        showBatchScopeDialog = false
-                                        startBatchOn(displayedRecords, activeFilter.labelFa)
+                                        batchScopePurpose = null
+                                        if (isSim) {
+                                            startSimulationOn(displayedRecords, activeFilter.labelFa)
+                                        } else {
+                                            startBatchOn(displayedRecords, activeFilter.labelFa)
+                                        }
                                     },
                                     enabled = displayedRecords.isNotEmpty(),
                                     modifier = Modifier
@@ -465,15 +562,19 @@ fun CaptchaLabScreen(
                             dismissButton = {
                                 Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                     TextButton(
-                                        onClick = { showBatchScopeDialog = false },
+                                        onClick = { batchScopePurpose = null },
                                         modifier = Modifier.minimumInteractiveComponentSize()
                                     ) {
                                         Text("انصراف")
                                     }
                                     TextButton(
                                         onClick = {
-                                            showBatchScopeDialog = false
-                                            startBatchOn(records, "همه کپچاها")
+                                            batchScopePurpose = null
+                                            if (isSim) {
+                                                startSimulationOn(records, "همه کپچاها")
+                                            } else {
+                                                startBatchOn(records, "همه کپچاها")
+                                            }
                                         },
                                         enabled = records.isNotEmpty(),
                                         modifier = Modifier
@@ -502,6 +603,8 @@ fun CaptchaLabScreen(
                                     onClick = {
                                         showClearConfirm = false
                                         CaptchaLabController.cancelBatchBenchmark()
+                                        CaptchaLabController.cancelSolverSimulation()
+                                        CaptchaLabController.clearSolverSimulationReport()
                                         repository.clearAllAsync()
                                         Toast.makeText(context, "بایگانی کپچا به‌طور کامل پاک‌سازی شد.", Toast.LENGTH_SHORT).show()
                                     },

@@ -77,7 +77,9 @@ object CaptchaPreprocessPipeline {
         val grayscale: GrayscaleImage,
         val contrastEnhanced: GrayscaleImage? = null,
         val thresholded: GrayscaleImage? = null,
+        val thresholdSkipped: Boolean = false,
         val denoised: GrayscaleImage? = null,
+        val denoiseSkipped: Boolean = false,
         val inverted: GrayscaleImage? = null,
         val invertSkipped: Boolean = false,
         val upscaled: GrayscaleImage? = null,
@@ -116,25 +118,42 @@ object CaptchaPreprocessPipeline {
         }
 
         val contrasted = stretchContrast(image, config.contrastClipPercent)
-        val thresholded = applyThreshold(
-            image = contrasted,
-            mode = config.thresholdMode,
-            fixedThreshold = config.fixedThreshold
-        )
-        val denoised = removeNoise(
-            image = thresholded,
-            mode = config.noiseRemovalMode,
-            kernelSize = config.filterSize
-        )
+
+        val thresholdSkipped = config.thresholdMode == ThresholdMode.NONE
+        val thresholdedOrNull = if (thresholdSkipped) {
+            null
+        } else {
+            applyThreshold(
+                image = contrasted,
+                mode = config.thresholdMode,
+                fixedThreshold = config.fixedThreshold
+            )
+        }
+        val afterThreshold = thresholdedOrNull ?: contrasted
+
+        val denoiseSkipped = config.noiseRemovalMode == NoiseRemovalMode.NONE || config.filterSize <= 1
+        val denoisedOrNull = if (denoiseSkipped) {
+            null
+        } else {
+            removeNoise(
+                image = afterThreshold,
+                mode = config.noiseRemovalMode,
+                kernelSize = config.filterSize
+            )
+        }
+        val afterDenoise = denoisedOrNull ?: afterThreshold
+
         val invertSkipped = !config.invertOutput
-        val invertedOrNull = if (config.invertOutput) invert(denoised) else null
-        val polarized = invertedOrNull ?: denoised
+        val invertedOrNull = if (config.invertOutput) invert(afterDenoise) else null
+        val polarized = invertedOrNull ?: afterDenoise
         val upscaled = upscaleNearestNeighbor(polarized, config.scaleFactor)
             ?: return PipelineStageTrace(
                 grayscale = image,
                 contrastEnhanced = contrasted,
-                thresholded = thresholded,
-                denoised = denoised,
+                thresholded = thresholdedOrNull,
+                thresholdSkipped = thresholdSkipped,
+                denoised = denoisedOrNull,
+                denoiseSkipped = denoiseSkipped,
                 inverted = invertedOrNull,
                 invertSkipped = invertSkipped,
                 failedStageName = "UPSCALED",
@@ -144,8 +163,10 @@ object CaptchaPreprocessPipeline {
         return PipelineStageTrace(
             grayscale = image,
             contrastEnhanced = contrasted,
-            thresholded = thresholded,
-            denoised = denoised,
+            thresholded = thresholdedOrNull,
+            thresholdSkipped = thresholdSkipped,
+            denoised = denoisedOrNull,
+            denoiseSkipped = denoiseSkipped,
             inverted = invertedOrNull,
             invertSkipped = invertSkipped,
             upscaled = upscaled,
@@ -279,9 +300,13 @@ object CaptchaPreprocessPipeline {
         mode: ThresholdMode = ThresholdMode.OTSU,
         fixedThreshold: Int = 140
     ): GrayscaleImage {
+        if (mode == ThresholdMode.NONE) {
+            return GrayscaleImage(width = image.width, height = image.height, pixels = image.pixels.copyOf())
+        }
         val threshold = when (mode) {
             ThresholdMode.OTSU -> computeOtsuThreshold(image)
             ThresholdMode.FIXED -> fixedThreshold.coerceIn(0, LUMA_MAX)
+            ThresholdMode.NONE -> return GrayscaleImage(width = image.width, height = image.height, pixels = image.pixels.copyOf())
         }
         val pixels = image.pixels
         val out = IntArray(pixels.size)

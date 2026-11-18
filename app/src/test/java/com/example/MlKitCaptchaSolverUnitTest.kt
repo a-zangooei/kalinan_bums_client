@@ -1,6 +1,8 @@
 package com.example
 
+import com.example.data.captcha.preprocess.NoiseRemovalMode
 import com.example.data.captcha.preprocess.PreprocessConfig
+import com.example.data.captcha.preprocess.ThresholdMode
 import com.example.data.captcha.solver.CaptchaDigitValidator
 import com.example.data.captcha.solver.CaptchaFrame
 import com.example.data.captcha.solver.CaptchaResult
@@ -421,6 +423,30 @@ class MlKitCaptchaSolverUnitTest {
         val timeoutOutcome = timeoutSolver.solveWithDiagnostics(dummyImageBytes)
         assertEquals(OcrSolveStage.TIMEOUT, timeoutOutcome.diagnostics.stage)
         assertTrue(timeoutOutcome.diagnostics.causeChain?.contains("RECOGNIZE") == true)
+    }
+
+    @Test
+    fun solverConfig_usesDecodedColorPrimaryAndComplementaryNonDenoisedFallbacks() {
+        val cfg = CaptchaSolverConfig()
+        assertTrue(cfg.primaryConfig.useDecodedColorFrame)
+        assertEquals(ThresholdMode.NONE, cfg.primaryConfig.thresholdMode)
+        assertEquals(NoiseRemovalMode.NONE, cfg.primaryConfig.noiseRemovalMode)
+        assertFalse(cfg.primaryConfig.invertOutput)
+        assertEquals(1, cfg.primaryConfig.scaleFactor)
+        assertEquals(0, cfg.primaryConfig.borderPaddingPx)
+
+        assertEquals(2, cfg.fallbackConfigs.size)
+        val fb1 = cfg.fallbackConfigs[0]
+        assertFalse(fb1.useDecodedColorFrame)
+        assertEquals(ThresholdMode.NONE, fb1.thresholdMode)
+        assertEquals(NoiseRemovalMode.NONE, fb1.noiseRemovalMode)
+        assertFalse(fb1.invertOutput)
+
+        val fb2 = cfg.fallbackConfigs[1]
+        assertFalse(fb2.useDecodedColorFrame)
+        assertEquals(ThresholdMode.OTSU, fb2.thresholdMode)
+        assertEquals(NoiseRemovalMode.NONE, fb2.noiseRemovalMode)
+        assertTrue(fb2.invertOutput)
     }
 }
 

@@ -200,6 +200,7 @@ data class CaptchaLabRecord(
 
 enum class CaptchaLabFilter(val labelFa: String) {
     ALL("همه"),
+    UNLABELED("بدون برچسب"),
     SUCCESS("موفق"),
     FAILED("ناموفق"),
     NO_TEXT_DETECTED("بدون متن"),
@@ -481,6 +482,7 @@ object CaptchaLabJson {
         put("contrastClipPercent", cfg.contrastClipPercent.toDouble())
         put("minDimensionPx", cfg.minDimensionPx)
         put("maxDimensionPx", cfg.maxDimensionPx)
+        put("useDecodedColorFrame", cfg.useDecodedColorFrame)
     }
 
     private fun preprocessConfigFromJson(obj: JSONObject): PreprocessConfig {
@@ -501,7 +503,8 @@ object CaptchaLabJson {
             invertOutput = obj.optBoolean("invertOutput", true),
             contrastClipPercent = obj.optDouble("contrastClipPercent", 0.02).toFloat(),
             minDimensionPx = obj.optInt("minDimensionPx", 8),
-            maxDimensionPx = obj.optInt("maxDimensionPx", 2048)
+            maxDimensionPx = obj.optInt("maxDimensionPx", 2048),
+            useDecodedColorFrame = obj.optBoolean("useDecodedColorFrame", false)
         )
     }
 

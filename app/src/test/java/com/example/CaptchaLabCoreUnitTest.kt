@@ -9,6 +9,7 @@ import com.example.data.captcha.lab.CaptchaLabOutcomeCategory
 import com.example.data.captcha.lab.CaptchaLabRepository
 import com.example.data.captcha.lab.CaptchaLabSort
 import com.example.data.captcha.lab.CaptchaLabZipExporter
+import com.example.data.captcha.lab.CaptchaSolverSimulationEngine
 import com.example.data.captcha.lab.CaptchaStageBenchmarkEngine
 import com.example.data.captcha.lab.CaptchaStageKind
 import com.example.data.captcha.lab.CaptchaStageStatus
@@ -823,5 +824,172 @@ class CaptchaLabCoreUnitTest {
             assertEquals(CaptchaStageKind.DENOISED.name, summaryJson.getString("recommendedBestStageKey"))
             assertEquals(9, summaryJson.getJSONArray("stageCompatibilityLeaderboard").length())
         }
+    }
+
+    @Test
+    fun unlabeledFilter_jsonColorConfigAndSimulationEngine_workWithoutMutatingArchive() = runTest {
+        val rootDir = tempFolder.newFolder("sim_engine_test")
+        val repo = CaptchaLabRepository(
+            rootDir = rootDir,
+            appVersionName = "2.3.1",
+            appVersionCode = 82,
+            buildType = "debug",
+            ioDispatcher = Dispatchers.Unconfined,
+            pngEncoder = { _, _, _, dest ->
+                dest.parentFile?.mkdirs()
+                dest.writeBytes(byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47))
+                true
+            }
+        )
+
+        val gifA = buildSyntheticGif(1)
+        val gifB = buildSyntheticGif(2)
+        val traced = fakeTracedSuccess()
+        val primaryCfg = CaptchaSolverConfig.defaultPrimaryConfig()
+
+        // Cap 1: previously FAILED (NO_TEXT_DETECTED), labeled expectedDigits="4829", will succeed in Primary simulation
+        repo.saveSessionNow(
+            CapturedCaptchaSession(
+                captchaId = "sim_cap_1",
+                capturedAtEpochMs = 1_700_000_400_000L,
+                rawBytes = gifA,
+                rawInspection = GifFormatInspector.inspect(gifA),
+                decodedFrameIndex = 0,
+                decodeStatus = "SUCCESS",
+                rawWidth = 120,
+                rawHeight = 40,
+                outcomeCategory = CaptchaLabOutcomeCategory.NO_TEXT_DETECTED,
+                finalStatus = "NO_TEXT_DETECTED",
+                finalDigits = null,
+                failureReason = "NO_TEXT_DETECTED",
+                lastRejectionCode = "NO_TEXT_DETECTED",
+                exceptionType = null,
+                mlKitErrorCode = null,
+                totalDurationMs = 80L,
+                attempts = listOf(
+                    CapturedAttemptPayload(
+                        attemptNumber = 1,
+                        routeType = "PRIMARY",
+                        preprocessConfig = primaryCfg,
+                        decodeStatus = "SUCCESS",
+                        stages = traced.stages,
+                        mlKitInputWidth = 120,
+                        mlKitInputHeight = 40,
+                        rawOcrFullText = "",
+                        elements = emptyList(),
+                        elementCount = 0,
+                        normalizedDigits = null,
+                        validationPassed = false,
+                        rejectionCode = "NO_TEXT_DETECTED",
+                        failureReason = "NO_TEXT_DETECTED"
+                    )
+                )
+            )
+        )
+        repo.updateExpectedDigits("sim_cap_1", "4829")
+
+        // Cap 2: previously FAILED (VALIDATION_REJECTED), unlabeled, will succeed via Fallback 1 in simulation
+        repo.saveSessionNow(
+            CapturedCaptchaSession(
+                captchaId = "sim_cap_2",
+                capturedAtEpochMs = 1_700_000_410_000L,
+                rawBytes = gifB,
+                rawInspection = GifFormatInspector.inspect(gifB),
+                decodedFrameIndex = 0,
+                decodeStatus = "SUCCESS",
+                rawWidth = 120,
+                rawHeight = 40,
+                outcomeCategory = CaptchaLabOutcomeCategory.VALIDATION_REJECTED,
+                finalStatus = "VALIDATION_REJECTED",
+                finalDigits = null,
+                failureReason = "mismatch",
+                lastRejectionCode = "DIGIT_COUNT_MISMATCH",
+                exceptionType = null,
+                mlKitErrorCode = null,
+                totalDurationMs = 120L,
+                attempts = emptyList()
+            )
+        )
+
+        val all = repo.records.value
+        assertEquals(2, all.size)
+
+        // Verify JSON persisted useDecodedColorFrame & ThresholdMode.NONE cleanly
+        val cap1 = all.first { it.captchaId == "sim_cap_1" }
+        assertTrue(cap1.attempts.single().preprocessConfig.useDecodedColorFrame)
+        assertEquals(ThresholdMode.NONE, cap1.attempts.single().preprocessConfig.thresholdMode)
+
+        // Verify UNLABELED filter picks only sim_cap_2
+        val unlabeled = CaptchaLabRepository.filterAndSort(all, CaptchaLabFilter.UNLABELED, CaptchaLabSort.NEWEST_FIRST)
+        assertEquals(listOf("sim_cap_2"), unlabeled.map { it.captchaId })
+
+        class TaggedSimFrame(val cfg: PreprocessConfig, val isCap1: Boolean) : CaptchaFrame {
+            override fun release() = Unit
+        }
+
+        var sessionFactoryCalls = 0
+        var sharedSessionClosed = false
+        val engine = CaptchaSolverSimulationEngine(
+            dispatcher = Dispatchers.Unconfined,
+            sessionFactory = {
+                sessionFactoryCalls++
+                object : OcrSession {
+                    override suspend fun recognize(frame: CaptchaFrame): OcrOutput {
+                        val tagged = frame as TaggedSimFrame
+                        val cfg = tagged.cfg
+                        return if (tagged.isCap1) {
+                            // First captcha: Primary (useDecodedColorFrame) returns 4829
+                            if (cfg.useDecodedColorFrame) {
+                                OcrOutput("4829", listOf(OcrElement("4829", 0.92f)))
+                            } else {
+                                OcrOutput("48", listOf(OcrElement("48", 0.70f)))
+                            }
+                        } else {
+                            // Second captcha: Primary returns partial "73", Fallback 1 returns "7391", Fallback 2 returns "73"
+                            when {
+                                cfg.useDecodedColorFrame ->
+                                    OcrOutput("73", listOf(OcrElement("73", 0.85f)))
+                                cfg.thresholdMode == ThresholdMode.NONE ->
+                                    OcrOutput("7391", listOf(OcrElement("7391", 0.88f)))
+                                else -> OcrOutput("73", listOf(OcrElement("73", 0.70f)))
+                            }
+                        }
+                    }
+
+                    override fun close() {
+                        sharedSessionClosed = true
+                    }
+                }
+            },
+            solverConfig = CaptchaSolverConfig(),
+            framePreprocessor = { bytes, cfg -> TaggedSimFrame(cfg, isCap1 = bytes.contentEquals(gifA)) }
+        )
+
+        val report = engine.simulateBatch(repo, all, "کل آرشیو")
+        assertEquals(1, sessionFactoryCalls)
+        assertTrue(sharedSessionClosed)
+        assertEquals(2, report.evaluatedCount)
+        assertEquals(0, report.skippedMissingRawCount)
+        assertFalse(report.cancelled)
+
+        // Previous archive metrics: 0% success, 0/1 exact
+        assertEquals(0, report.previous.totalSuccessCount)
+        assertEquals(0, report.previous.successRatePercent)
+        assertEquals(1, report.previous.noTextCount)
+        assertEquals(1, report.previous.labeledEvaluatedCount)
+        assertEquals(0, report.previous.exactMatchCount)
+        assertEquals(0, report.previous.exactMatchRatePercent)
+
+        // Simulated metrics: 1 Primary + 1 Fallback = 100% success, 1/1 (100%) exact
+        assertEquals(1, report.simulated.primarySuccessCount)
+        assertEquals(1, report.simulated.fallbackSuccessCount)
+        assertEquals(2, report.simulated.totalSuccessCount)
+        assertEquals(100, report.simulated.successRatePercent)
+        assertEquals(1, report.simulated.exactMatchCount)
+        assertEquals(100, report.simulated.exactMatchRatePercent)
+
+        // Archive records on disk remained untouched (non-destructive simulation)
+        val after = repo.records.value.first { it.captchaId == "sim_cap_1" }
+        assertEquals(CaptchaLabOutcomeCategory.NO_TEXT_DETECTED, after.outcomeCategory)
     }
 }

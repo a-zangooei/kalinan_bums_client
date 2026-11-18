@@ -111,7 +111,7 @@ internal class MlKitOcrSession(
 data class CaptchaSolverConfig(
     val timeoutMs: Long = DEFAULT_TIMEOUT_MS,
     val minElementConfidence: Float = CaptchaDigitValidator.DEFAULT_MIN_ELEMENT_CONFIDENCE,
-    val primaryConfig: PreprocessConfig = PreprocessConfig(),
+    val primaryConfig: PreprocessConfig = defaultPrimaryConfig(),
     val fallbackConfigs: List<PreprocessConfig> = defaultFallbackConfigs()
 ) {
     init {
@@ -125,19 +125,42 @@ data class CaptchaSolverConfig(
         const val DEFAULT_TIMEOUT_MS = 2_500L
         const val MAX_FALLBACK_ATTEMPTS = 2
 
+        /**
+         * تلاش اول (رتبه ۱ بنچمارک ۱۰۰ کپچا): ارسال مستقیم فریم رنگی رمزگشایی‌شده بدون باینری‌سازی و حذف نویز.
+         */
+        fun defaultPrimaryConfig(): PreprocessConfig = PreprocessConfig(
+            useDecodedColorFrame = true,
+            contrastClipPercent = 0f,
+            thresholdMode = ThresholdMode.NONE,
+            noiseRemovalMode = NoiseRemovalMode.NONE,
+            invertOutput = false,
+            scaleFactor = 1,
+            borderPaddingPx = 0
+        )
+
+        /**
+         * دو مسیر جایگزین مکمل در صورت عدم اطمینان تلاش اول:
+         * ۱) بهبود کنتراست خاکستری بدون باینری‌سازی و بدون حذف نویز (`CONTRAST_ENHANCED`)
+         * ۲) آستانه‌گذاری تطبیقی اوتسو بدون فیلتر حذف نویز (جلوگیری از خوردگی خطوط نازک ارقام)
+         */
         fun defaultFallbackConfigs(): List<PreprocessConfig> = listOf(
             PreprocessConfig(
-                thresholdMode = ThresholdMode.FIXED,
-                fixedThreshold = 135,
-                noiseRemovalMode = NoiseRemovalMode.MEDIAN,
-                filterSize = 3,
-                scaleFactor = 3
+                useDecodedColorFrame = false,
+                contrastClipPercent = 0.02f,
+                thresholdMode = ThresholdMode.NONE,
+                noiseRemovalMode = NoiseRemovalMode.NONE,
+                invertOutput = false,
+                scaleFactor = 1,
+                borderPaddingPx = 0
             ),
             PreprocessConfig(
+                useDecodedColorFrame = false,
+                contrastClipPercent = 0.02f,
                 thresholdMode = ThresholdMode.OTSU,
-                noiseRemovalMode = NoiseRemovalMode.MORPHOLOGICAL_OPEN,
-                filterSize = 3,
-                scaleFactor = 3
+                noiseRemovalMode = NoiseRemovalMode.NONE,
+                invertOutput = true,
+                scaleFactor = 2,
+                borderPaddingPx = 12
             )
         )
     }

@@ -32,6 +32,16 @@ object CaptchaPreprocessor {
         if (bytes.isEmpty() || !config.isValid()) return null
 
         return try {
+            if (config.useDecodedColorFrame) {
+                val decodedOutcome = decodeBytesWithArgbSnapshot(bytes, config)
+                val snap = decodedOutcome.snapshot ?: return null
+                val finalSnap = applyArgbScaleAndWhiteBorder(
+                    snapshot = snap,
+                    scaleFactor = config.scaleFactor,
+                    borderPaddingPx = config.borderPaddingPx
+                ) ?: return null
+                return encodeArgbSnapshotToBitmap(finalSnap)
+            }
             val grayscale = decodeBytesToGrayscale(bytes, config) ?: return null
             val processed = CaptchaPreprocessPipeline.process(grayscale, config) ?: return null
             encodeGrayscaleToBitmap(processed)
@@ -96,6 +106,58 @@ object CaptchaPreprocessor {
             }
 
             val snap = decoded.snapshot
+            if (config.useDecodedColorFrame) {
+                val finalSnap = applyArgbScaleAndWhiteBorder(
+                    snapshot = snap,
+                    scaleFactor = config.scaleFactor,
+                    borderPaddingPx = config.borderPaddingPx
+                )
+                val stages = buildDecodedColorStageBuffers(snap, finalSnap, config)
+                if (finalSnap == null) {
+                    return TracedPreprocessResult(
+                        frame = null,
+                        decodeStatus = "SUCCESS",
+                        decodedWidth = snap.width,
+                        decodedHeight = snap.height,
+                        mlKitInputWidth = null,
+                        mlKitInputHeight = null,
+                        stages = stages,
+                        failureReason = "ARGB scale/pad failed for scaleFactor=${config.scaleFactor}",
+                        preprocessDurationMs = elapsedMs()
+                    )
+                }
+                val finalBitmap = encodeArgbSnapshotToBitmap(finalSnap)
+                if (finalBitmap == null) {
+                    val updatedStages = stages.map { st ->
+                        if (st.stage == CaptchaStageKind.FINAL_PADDED) {
+                            st.copy(status = CaptchaStageStatus.FAILED, note = "Bitmap encode failed")
+                        } else st
+                    }
+                    return TracedPreprocessResult(
+                        frame = null,
+                        decodeStatus = "SUCCESS",
+                        decodedWidth = snap.width,
+                        decodedHeight = snap.height,
+                        mlKitInputWidth = null,
+                        mlKitInputHeight = null,
+                        stages = updatedStages,
+                        failureReason = "Bitmap encoding of decoded color frame failed",
+                        preprocessDurationMs = elapsedMs()
+                    )
+                }
+                return TracedPreprocessResult(
+                    frame = AndroidBitmapFrame(finalBitmap),
+                    decodeStatus = "SUCCESS",
+                    decodedWidth = snap.width,
+                    decodedHeight = snap.height,
+                    mlKitInputWidth = finalSnap.width,
+                    mlKitInputHeight = finalSnap.height,
+                    stages = stages,
+                    failureReason = null,
+                    preprocessDurationMs = elapsedMs()
+                )
+            }
+
             val grayscale = CaptchaPreprocessPipeline.toGrayscaleFromArgb(
                 width = snap.width,
                 height = snap.height,
@@ -336,8 +398,18 @@ object CaptchaPreprocessor {
             ),
             grayStage(CaptchaStageKind.GRAYSCALE, trace.grayscale),
             grayStage(CaptchaStageKind.CONTRAST_ENHANCED, trace.contrastEnhanced),
-            grayStage(CaptchaStageKind.THRESHOLDED, trace.thresholded),
-            grayStage(CaptchaStageKind.DENOISED, trace.denoised),
+            grayStage(
+                CaptchaStageKind.THRESHOLDED,
+                trace.thresholded,
+                skipped = trace.thresholdSkipped,
+                skipReason = "thresholdMode=NONE"
+            ),
+            grayStage(
+                CaptchaStageKind.DENOISED,
+                trace.denoised,
+                skipped = trace.denoiseSkipped,
+                skipReason = "noiseRemovalMode=NONE"
+            ),
             grayStage(
                 CaptchaStageKind.INVERTED,
                 trace.inverted,
@@ -347,6 +419,92 @@ object CaptchaPreprocessor {
             grayStage(CaptchaStageKind.UPSCALED, trace.upscaled),
             grayStage(CaptchaStageKind.FINAL_PADDED, trace.finalPadded)
         )
+    }
+
+    private fun buildDecodedColorStageBuffers(
+        decoded: DecodedArgbSnapshot,
+        finalSnap: DecodedArgbSnapshot?,
+        config: PreprocessConfig
+    ): List<CapturedStageBuffer> {
+        val reason = "useDecodedColorFrame=true"
+        return CaptchaStageKind.entries.map { kind ->
+            when (kind) {
+                CaptchaStageKind.DECODED -> CapturedStageBuffer(
+                    stage = kind,
+                    status = CaptchaStageStatus.COMPLETED,
+                    width = decoded.width,
+                    height = decoded.height,
+                    argbSnapshot = decoded
+                )
+                CaptchaStageKind.FINAL_PADDED -> if (finalSnap != null) {
+                    CapturedStageBuffer(
+                        stage = kind,
+                        status = CaptchaStageStatus.COMPLETED,
+                        width = finalSnap.width,
+                        height = finalSnap.height,
+                        argbSnapshot = finalSnap,
+                        note = if (config.borderPaddingPx == 0 && config.scaleFactor == 1) {
+                            "ارسال مستقیم فریم رنگی رمزگشایی‌شده به ML Kit"
+                        } else null
+                    )
+                } else {
+                    CapturedStageBuffer(
+                        stage = kind,
+                        status = CaptchaStageStatus.FAILED,
+                        note = "ARGB scale/pad failed"
+                    )
+                }
+                else -> CapturedStageBuffer(
+                    stage = kind,
+                    status = CaptchaStageStatus.SKIPPED,
+                    note = reason
+                )
+            }
+        }
+    }
+
+    private fun applyArgbScaleAndWhiteBorder(
+        snapshot: DecodedArgbSnapshot,
+        scaleFactor: Int,
+        borderPaddingPx: Int
+    ): DecodedArgbSnapshot? {
+        if (scaleFactor == 1 && borderPaddingPx == 0) {
+            return snapshot
+        }
+        val scaledWLong = snapshot.width.toLong() * scaleFactor
+        val scaledHLong = snapshot.height.toLong() * scaleFactor
+        val outWLong = scaledWLong + borderPaddingPx * 2L
+        val outHLong = scaledHLong + borderPaddingPx * 2L
+        val totalLong = outWLong * outHLong
+        if (outWLong > Int.MAX_VALUE || outHLong > Int.MAX_VALUE || totalLong > 16_777_216L) {
+            return null
+        }
+        val scaledW = scaledWLong.toInt()
+        val scaledH = scaledHLong.toInt()
+        val outW = outWLong.toInt()
+        val outH = outHLong.toInt()
+        val out = IntArray(totalLong.toInt()) { -1 } // Pure opaque white ARGB (0xFFFFFFFF)
+        val src = snapshot.argbPixels
+        for (y in 0 until scaledH) {
+            val srcRow = (y / scaleFactor) * snapshot.width
+            val dstRow = (y + borderPaddingPx) * outW + borderPaddingPx
+            for (x in 0 until scaledW) {
+                out[dstRow + x] = src[srcRow + (x / scaleFactor)]
+            }
+        }
+        return DecodedArgbSnapshot(width = outW, height = outH, argbPixels = out)
+    }
+
+    private fun encodeArgbSnapshotToBitmap(snapshot: DecodedArgbSnapshot): Bitmap? {
+        var outputBitmap: Bitmap? = null
+        return try {
+            outputBitmap = Bitmap.createBitmap(snapshot.width, snapshot.height, Bitmap.Config.ARGB_8888)
+            outputBitmap.setPixels(snapshot.argbPixels, 0, snapshot.width, 0, 0, snapshot.width, snapshot.height)
+            outputBitmap
+        } catch (_: Throwable) {
+            outputBitmap?.let { if (!it.isRecycled) it.recycle() }
+            null
+        }
     }
 
     /**

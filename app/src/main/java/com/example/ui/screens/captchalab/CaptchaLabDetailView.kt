@@ -517,8 +517,23 @@ private fun AttemptDetailCard(
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
-                    MetaTag("threshold=${cfg.thresholdMode.name}(${cfg.fixedThreshold})")
-                    MetaTag("noise=${cfg.noiseRemovalMode.name}(k=${cfg.filterSize})")
+                    if (cfg.useDecodedColorFrame) {
+                        MetaTag("colorDecoded=true")
+                    }
+                    MetaTag(
+                        if (cfg.thresholdMode == com.example.data.captcha.preprocess.ThresholdMode.FIXED) {
+                            "threshold=FIXED(${cfg.fixedThreshold})"
+                        } else {
+                            "threshold=${cfg.thresholdMode.name}"
+                        }
+                    )
+                    MetaTag(
+                        if (cfg.noiseRemovalMode == com.example.data.captcha.preprocess.NoiseRemovalMode.NONE) {
+                            "noise=NONE"
+                        } else {
+                            "noise=${cfg.noiseRemovalMode.name}(k=${cfg.filterSize})"
+                        }
+                    )
                     MetaTag("scale=${cfg.scaleFactor}x")
                     MetaTag("pad=${cfg.borderPaddingPx}px")
                     MetaTag("invert=${cfg.invertOutput}")

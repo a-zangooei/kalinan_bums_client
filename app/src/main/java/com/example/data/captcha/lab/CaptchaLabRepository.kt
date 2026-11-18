@@ -481,6 +481,9 @@ class CaptchaLabRepository internal constructor(
         ): List<CaptchaLabRecord> {
             val filtered = when (filter) {
                 CaptchaLabFilter.ALL -> records
+                CaptchaLabFilter.UNLABELED -> records.filter {
+                    it.expectedDigits.isNullOrBlank()
+                }
                 CaptchaLabFilter.SUCCESS -> records.filter {
                     it.outcomeCategory == CaptchaLabOutcomeCategory.SUCCESS_PRIMARY ||
                         it.outcomeCategory == CaptchaLabOutcomeCategory.SUCCESS_FALLBACK
@@ -539,9 +542,17 @@ object CaptchaLabController : CaptchaLabObserver {
     private val _activeSingleBenchmarkIds = MutableStateFlow<Set<String>>(emptySet())
     val activeSingleBenchmarkIds: StateFlow<Set<String>> = _activeSingleBenchmarkIds.asStateFlow()
 
+    private val _simulationProgress = MutableStateFlow(SolverSimulationProgressState())
+    val simulationProgress: StateFlow<SolverSimulationProgressState> = _simulationProgress.asStateFlow()
+
+    private val _simulationReport = MutableStateFlow<CaptchaSolverSimulationReport?>(null)
+    val simulationReport: StateFlow<CaptchaSolverSimulationReport?> = _simulationReport.asStateFlow()
+
     private val controllerScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val benchmarkEngine = CaptchaStageBenchmarkEngine()
+    private val simulationEngine = CaptchaSolverSimulationEngine()
     private var batchJob: Job? = null
+    private var simulationJob: Job? = null
 
     @Volatile
     private var repository: CaptchaLabRepository? = null
@@ -627,7 +638,7 @@ object CaptchaLabController : CaptchaLabObserver {
         scopeLabel: String,
         onFinished: ((completedCount: Int, cancelled: Boolean) -> Unit)? = null
     ) {
-        if (_batchProgress.value.isRunning || targetRecords.isEmpty()) return
+        if (_batchProgress.value.isRunning || _simulationProgress.value.isRunning || targetRecords.isEmpty()) return
         val repo = getRepository(context)
         batchJob?.cancel()
         _batchProgress.value = BatchBenchmarkProgressState(
@@ -669,6 +680,65 @@ object CaptchaLabController : CaptchaLabObserver {
     fun cancelBatchBenchmark() {
         batchJob?.cancel()
         batchJob = null
+    }
+
+    fun startSolverSimulation(
+        context: Context,
+        targetRecords: List<CaptchaLabRecord>,
+        scopeLabel: String,
+        onFinished: ((CaptchaSolverSimulationReport?) -> Unit)? = null
+    ) {
+        if (_simulationProgress.value.isRunning || _batchProgress.value.isRunning || targetRecords.isEmpty()) return
+        val repo = getRepository(context)
+        simulationJob?.cancel()
+        _simulationProgress.value = SolverSimulationProgressState(
+            isRunning = true,
+            scopeLabel = scopeLabel,
+            completedCount = 0,
+            totalCount = targetRecords.size,
+            currentCaptchaId = targetRecords.firstOrNull()?.captchaId
+        )
+
+        simulationJob = controllerScope.launch {
+            var finalReport: CaptchaSolverSimulationReport? = null
+            try {
+                repo.ensureLoaded()
+                finalReport = simulationEngine.simulateBatch(
+                    repository = repo,
+                    records = targetRecords,
+                    scopeLabel = scopeLabel
+                ) { done, total, currentId ->
+                    _simulationProgress.value = SolverSimulationProgressState(
+                        isRunning = true,
+                        scopeLabel = scopeLabel,
+                        completedCount = done,
+                        totalCount = total,
+                        currentCaptchaId = currentId
+                    )
+                }
+                _simulationReport.value = finalReport
+            } catch (_: Throwable) {
+                // Keep UI responsive if ML Kit throws unexpectedly
+            } finally {
+                _simulationProgress.value = SolverSimulationProgressState(isRunning = false)
+                onFinished?.let { cb ->
+                    withContext(Dispatchers.Main) { cb(finalReport) }
+                }
+            }
+        }
+    }
+
+    fun cancelSolverSimulation() {
+        simulationJob?.cancel()
+        simulationJob = null
+    }
+
+    fun clearSolverSimulationReport() {
+        _simulationReport.value = null
+    }
+
+    internal fun setSimulationReportForPreviewOrTest(report: CaptchaSolverSimulationReport?) {
+        _simulationReport.value = report
     }
 
     override fun isArchivingEnabled(): Boolean = _isArchivingEnabled.value

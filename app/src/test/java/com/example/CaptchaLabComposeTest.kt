@@ -16,6 +16,7 @@ import androidx.compose.ui.test.performTextReplacement
 import com.example.data.captcha.lab.CaptchaBenchmarkTargetStatus
 import com.example.data.captcha.lab.CaptchaLabController
 import com.example.data.captcha.lab.CaptchaLabOutcomeCategory
+import com.example.data.captcha.lab.CaptchaSolverSimulationReport
 import com.example.data.captcha.lab.CaptchaStageBenchmarkResult
 import com.example.data.captcha.lab.CaptchaStageKind
 import com.example.data.captcha.lab.CaptchaStageOcrTargetResult
@@ -25,6 +26,7 @@ import com.example.data.captcha.lab.CapturedCaptchaSession
 import com.example.data.captcha.lab.CapturedStageBuffer
 import com.example.data.captcha.lab.DecodedArgbSnapshot
 import com.example.data.captcha.lab.GifFormatInspector
+import com.example.data.captcha.lab.SolverSimulationMetricsSnapshot
 import com.example.data.captcha.preprocess.GrayscaleImage
 import com.example.data.captcha.preprocess.PreprocessConfig
 import com.example.data.captcha.solver.OcrElement
@@ -57,6 +59,8 @@ class CaptchaLabComposeTest {
         context = ApplicationProvider.getApplicationContext()
         CaptchaLabController.init(context)
         CaptchaLabController.setArchivingEnabled(false)
+        CaptchaLabController.cancelSolverSimulation()
+        CaptchaLabController.clearSolverSimulationReport()
         runBlocking {
             CaptchaLabController.getRepository(context).clearAll()
         }
@@ -65,6 +69,8 @@ class CaptchaLabComposeTest {
     @After
     fun tearDown() {
         CaptchaLabController.setArchivingEnabled(false)
+        CaptchaLabController.cancelSolverSimulation()
+        CaptchaLabController.clearSolverSimulationReport()
     }
 
     @Test
@@ -349,5 +355,125 @@ class CaptchaLabComposeTest {
         composeRule.waitForIdle()
         composeRule.onNodeWithTag("stage_benchmark_target_RAW").performScrollTo().assertIsDisplayed()
         composeRule.onNodeWithTag("stage_benchmark_target_DENOISED").performScrollTo().assertIsDisplayed()
+    }
+
+    @Test
+    fun unlabeledFilterAndSimulationComparisonCard_workInCaptchaLabUi() {
+        val repo = CaptchaLabController.getRepository(context)
+        val dummyGif = byteArrayOf(0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 24, 0, 12, 0, 0, 0, 0, 0x3B)
+
+        runBlocking {
+            repo.saveSessionNow(
+                CapturedCaptchaSession(
+                    captchaId = "labeled_cap",
+                    capturedAtEpochMs = 1_700_000_600_000L,
+                    rawBytes = dummyGif,
+                    rawInspection = GifFormatInspector.inspect(dummyGif),
+                    decodedFrameIndex = 0,
+                    decodeStatus = "SUCCESS",
+                    rawWidth = 24,
+                    rawHeight = 12,
+                    outcomeCategory = CaptchaLabOutcomeCategory.SUCCESS_PRIMARY,
+                    finalStatus = "SUCCESS_PRIMARY",
+                    finalDigits = "1234",
+                    failureReason = null,
+                    lastRejectionCode = null,
+                    exceptionType = null,
+                    mlKitErrorCode = null,
+                    totalDurationMs = 45L,
+                    attempts = emptyList()
+                )
+            )
+            repo.updateExpectedDigits("labeled_cap", "1234")
+
+            repo.saveSessionNow(
+                CapturedCaptchaSession(
+                    captchaId = "unlabeled_cap",
+                    capturedAtEpochMs = 1_700_000_610_000L,
+                    rawBytes = dummyGif,
+                    rawInspection = GifFormatInspector.inspect(dummyGif),
+                    decodedFrameIndex = 0,
+                    decodeStatus = "SUCCESS",
+                    rawWidth = 24,
+                    rawHeight = 12,
+                    outcomeCategory = CaptchaLabOutcomeCategory.VALIDATION_REJECTED,
+                    finalStatus = "VALIDATION_REJECTED",
+                    finalDigits = null,
+                    failureReason = "mismatch",
+                    lastRejectionCode = "DIGIT_COUNT_MISMATCH",
+                    exceptionType = null,
+                    mlKitErrorCode = null,
+                    totalDurationMs = 70L,
+                    attempts = emptyList()
+                )
+            )
+        }
+
+        CaptchaLabController.setSimulationReportForPreviewOrTest(
+            CaptchaSolverSimulationReport(
+                ranAtEpochMs = 1_700_000_620_000L,
+                scopeLabel = "همه کپچاها",
+                evaluatedCount = 2,
+                skippedMissingRawCount = 0,
+                cancelled = false,
+                previous = SolverSimulationMetricsSnapshot(
+                    totalEvaluated = 2,
+                    primarySuccessCount = 1,
+                    fallbackSuccessCount = 0,
+                    totalSuccessCount = 1,
+                    noTextCount = 0,
+                    rejectedOrErrorCount = 1,
+                    successRatePercent = 50,
+                    averageDurationMs = 58L,
+                    labeledEvaluatedCount = 1,
+                    exactMatchCount = 1,
+                    exactMatchRatePercent = 100
+                ),
+                simulated = SolverSimulationMetricsSnapshot(
+                    totalEvaluated = 2,
+                    primarySuccessCount = 1,
+                    fallbackSuccessCount = 1,
+                    totalSuccessCount = 2,
+                    noTextCount = 0,
+                    rejectedOrErrorCount = 0,
+                    successRatePercent = 100,
+                    averageDurationMs = 42L,
+                    labeledEvaluatedCount = 1,
+                    exactMatchCount = 1,
+                    exactMatchRatePercent = 100
+                )
+            )
+        )
+
+        composeRule.setContent {
+            CullinanTheme {
+                CaptchaLabScreen(onDismiss = {})
+            }
+        }
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_simulation_report_card"))
+        composeRule.onNodeWithTag("captcha_lab_simulation_report_card").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_simulate_solver_button"))
+        composeRule.onNodeWithTag("captcha_lab_simulate_solver_button").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_labeled_counter"))
+        composeRule.onNodeWithTag("captcha_lab_labeled_counter").assertIsDisplayed()
+
+        // Selecting UNLABELED filter hides labeled_cap and shows unlabeled_cap
+        composeRule.onNodeWithTag("captcha_lab_filter_UNLABELED").performScrollTo().performClick()
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_record_unlabeled_cap"))
+        composeRule.onNodeWithTag("captcha_lab_record_unlabeled_cap").assertIsDisplayed()
+        composeRule.onNodeWithTag("captcha_lab_record_labeled_cap").assertDoesNotExist()
+
+        // Dismiss simulation report card
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_simulation_report_card"))
+        composeRule.onNodeWithTag("captcha_lab_simulation_dismiss_button").performScrollTo().performClick()
+        composeRule.onNodeWithTag("captcha_lab_simulation_report_card").assertDoesNotExist()
     }
 }
