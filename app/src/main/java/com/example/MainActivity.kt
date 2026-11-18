@@ -57,6 +57,7 @@ import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.ui.graphics.Color
 import com.example.ui.screens.MessagesScreen
+import com.example.ui.screens.menu.SurveyWebViewScreen
 import com.example.ui.screens.profile.ProfileModalSheet
 import com.example.ui.viewmodel.MessagesViewModel
 import com.example.ui.viewmodel.ProfileViewModel
@@ -170,6 +171,7 @@ fun KalinanApp(
         }
     } else {
         var isLoggingOut by remember { mutableStateOf(false) }
+        var activeSurveyUrl by remember { mutableStateOf<String?>(null) }
         val coroutineScope = rememberCoroutineScope()
         val context = LocalContext.current
         val authRepo = remember { AuthRepository() }
@@ -200,8 +202,10 @@ fun KalinanApp(
                             // 1. Purge active local session state & in-memory PII
                             profileViewModel.clearSession()
                             activeSession = null
+                            activeSurveyUrl = null
                             selectedBottomTab = 0
                             menuViewModel.clearUnreadBlocked()
+                            menuViewModel.clearSurveyBlocked()
                             // 2. Clear local cookies AFTER server request completed
                             com.example.data.network.CullinanHttpClient.cookieJar.clear()
                             // 3. Reset credentials per Remember-Me/Biometric rules and fetch fresh Login.aspx
@@ -367,6 +371,10 @@ fun KalinanApp(
                                 onOpenProfile = {
                                     profileViewModel.openProfile(session, menuViewModel.weeklyMenu.value)
                                 },
+                                onOpenSurveyWebView = { url ->
+                                    AppLogger.logAction("Opening in-app Survey WebView")
+                                    activeSurveyUrl = url
+                                },
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(paddingValues)
@@ -419,8 +427,10 @@ fun KalinanApp(
                 onRelogin = {
                     profileViewModel.clearSession()
                     activeSession = null
+                    activeSurveyUrl = null
                     selectedBottomTab = 0
                     menuViewModel.clearUnreadBlocked()
+                    menuViewModel.clearSurveyBlocked()
                     com.example.data.network.CullinanHttpClient.cookieJar.clear()
                     authViewModel.onLogout()
                 },
@@ -429,6 +439,20 @@ fun KalinanApp(
                     selectedBottomTab = 1
                     messagesViewModel.loadMessages()
                 }
+            )
+        }
+
+        val currentSurveyUrl = activeSurveyUrl
+        if (currentSurveyUrl != null) {
+            SurveyWebViewScreen(
+                surveyUrl = currentSurveyUrl,
+                onCloseAndRefresh = {
+                    activeSurveyUrl = null
+                    activeSession = activeSession?.copy(hasMandatorySurvey = false)
+                    menuViewModel.loadInitialMenu()
+                    messagesViewModel.loadMessages()
+                },
+                modifier = Modifier.fillMaxSize()
             )
         }
     }

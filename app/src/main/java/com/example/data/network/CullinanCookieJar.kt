@@ -130,6 +130,16 @@ class CullinanCookieJar : CookieJar {
         }
     }
 
+    fun getCookiesForUrl(url: HttpUrl): List<Cookie> {
+        val host = url.host
+        val cookies = cookieStore[host] ?: return emptyList()
+        val now = System.currentTimeMillis()
+        return synchronized(cookies) {
+            cookies.removeAll { it.expiresAt < now }
+            cookies.filter { it.matches(url) }
+        }
+    }
+
     fun getSessionFingerprint(host: String = "jeton.bums.ac.ir"): String {
         val sessionValue = getCookieValue(host, "ASP.NET_SessionId") ?: return "NONE"
         return LogSanitizer.computeFingerprint(sessionValue)

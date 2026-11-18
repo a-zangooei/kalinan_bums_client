@@ -10,7 +10,8 @@ data class UserSession(
     val studentNumber: String = "",
     val nationalId: String = "",
     val creditFormatted: String = "",
-    val hasUnreadMessages: Boolean = false
+    val hasUnreadMessages: Boolean = false,
+    val hasMandatorySurvey: Boolean = false
 )
 
 @Immutable

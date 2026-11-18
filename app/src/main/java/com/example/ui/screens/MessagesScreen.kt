@@ -29,6 +29,7 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Mail
 import androidx.compose.material.icons.filled.MarkEmailRead
@@ -45,6 +46,7 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -358,13 +360,27 @@ fun MessagesScreen(
                 ) {
                     items(
                         items = pageState.messages,
-                        key = { "${it.rowIndex}_${it.buttonInputName}_${it.title.hashCode()}" },
+                        key = { "${it.pageNumber}_${it.rowIndex}_${it.sendDate}_${it.sendTime}_${it.title.hashCode()}" },
                         contentType = { "message_card" }
                     ) { message ->
                         MessageCard(
                             message = message,
                             onSelect = onSelectMessage
                         )
+                    }
+
+                    if (pageState.hasNextPage || pageState.isLoadingMore || pageState.loadedPagesCount > 1 || pageState.messages.size > 5) {
+                        item(key = "messages_pagination_footer", contentType = "pagination_footer") {
+                            MessagesPaginationFooter(
+                                loadedMessagesCount = pageState.messages.size,
+                                loadedPagesCount = pageState.loadedPagesCount,
+                                totalKnownPages = pageState.totalKnownPages,
+                                hasNextPage = pageState.hasNextPage,
+                                isLoadingMore = pageState.isLoadingMore,
+                                enabled = !isReadingSerialized && !pageState.isLoading && !pageState.isLoadingMore,
+                                onLoadMore = { viewModel.loadMoreMessages() }
+                            )
+                        }
                     }
                 }
             }
@@ -628,6 +644,87 @@ fun MessageCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun MessagesPaginationFooter(
+    loadedMessagesCount: Int,
+    loadedPagesCount: Int,
+    totalKnownPages: Int,
+    hasNextPage: Boolean,
+    isLoadingMore: Boolean,
+    enabled: Boolean,
+    onLoadMore: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 6.dp, bottom = 20.dp)
+            .testTag("messages_pagination_footer"),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        val statusText = if (totalKnownPages > loadedPagesCount) {
+            "نمایش $loadedMessagesCount پیام (صفحه $loadedPagesCount از $totalKnownPages)"
+        } else {
+            "نمایش $loadedMessagesCount پیام (صفحه $loadedPagesCount)"
+        }
+
+        Text(
+            text = statusText,
+            fontSize = 11.sp,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+
+        if (hasNextPage || isLoadingMore) {
+            Spacer(modifier = Modifier.height(10.dp))
+            OutlinedButton(
+                onClick = onLoadMore,
+                enabled = enabled && !isLoadingMore,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .minimumInteractiveComponentSize()
+                    .testTag("load_more_messages_button"),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, TealPrimary.copy(alpha = 0.45f))
+            ) {
+                if (isLoadingMore) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        color = TealPrimary,
+                        strokeWidth = 2.dp
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "در حال دریافت پیام‌های بیشتر...",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = TealPrimary
+                    )
+                } else {
+                    Icon(
+                        imageVector = Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = TealPrimary,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "بارگذاری پیام‌های بیشتر",
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TealPrimary
+                    )
+                }
+            }
+        } else {
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "همه پیام‌های موجود بارگذاری شدند.",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
         }
     }
 }

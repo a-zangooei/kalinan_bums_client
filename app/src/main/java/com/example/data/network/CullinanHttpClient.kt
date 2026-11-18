@@ -41,6 +41,7 @@ object CullinanHttpClient {
     val RESERVATION_URL: String get() = "$BASE_URL/Reservation/Reservation.aspx"
     val MESSAGES_URL: String get() = "$BASE_URL/MyCullinan/MyMessage.aspx"
     val PROFILE_URL: String get() = "$BASE_URL/MyCullinan/MyProfile.aspx"
+    val SURVEY_URL: String get() = "$BASE_URL/Survey/Survey_Answer.aspx"
     val USER_IMAGE_URL: String get() = "$BASE_URL/UserControls/UserImage.ashx"
     val CAPTCHA_URL: String get() = "$BASE_URL/UserControls/Captcha.ashx"
 

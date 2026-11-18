@@ -5,7 +5,6 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.logger.AppLogger
 import com.example.data.model.MessageItem
-import com.example.data.model.MessageOpenResult
 import com.example.data.model.MessagesPageState
 import com.example.data.repository.MessageRepository
 import kotlinx.coroutines.Job
@@ -47,14 +46,14 @@ class MessagesViewModel(
     fun loadMessages() {
         AppLogger.logInfo("MessagesViewModel", "LoadMessages", "Fetching MyMessage.aspx messages")
         viewModelScope.launch {
-            _pageState.value = _pageState.value.copy(isLoading = true, errorMessage = null)
+            _pageState.value = _pageState.value.copy(isLoading = true, isLoadingMore = false, errorMessage = null)
             val result = messageRepository.fetchMessagesPage()
             result.onSuccess { state ->
                 _pageState.value = state
                 AppLogger.logInfo(
                     "MessagesViewModel",
                     "LoadMessagesSuccess",
-                    "Loaded ${state.messages.size} messages (unread=${state.unreadCount}, unlocked=${state.isReservationUnlocked})"
+                    "Loaded ${state.messages.size} messages (unread=${state.unreadCount}, unlocked=${state.isReservationUnlocked}, hasNext=${state.hasNextPage})"
                 )
             }.onFailure { error ->
                 val msg = error.message ?: "خطا در دریافت پیام‌ها از سرور"
@@ -67,10 +66,47 @@ class MessagesViewModel(
         }
     }
 
+    fun loadMoreMessages() {
+        val current = _pageState.value
+        if (current.isLoading || current.isLoadingMore || _isReadingSerialized.value || !current.hasNextPage) {
+            return
+        }
+
+        AppLogger.logInfo(
+            "MessagesViewModel",
+            "LoadMoreMessages",
+            "Loading next messages page (${current.nextPageEventArgument})"
+        )
+
+        viewModelScope.launch {
+            _pageState.value = _pageState.value.copy(isLoadingMore = true, errorMessage = null)
+            detailMutex.withLock {
+                val latestState = _pageState.value
+                val result = messageRepository.fetchNextMessagesPage(latestState)
+                result.onSuccess { updatedState ->
+                    _pageState.value = updatedState
+                }.onFailure { error ->
+                    val msg = error.message ?: "خطا در دریافت صفحه بعدی پیام‌ها"
+                    _pageState.value = _pageState.value.copy(
+                        isLoadingMore = false,
+                        errorMessage = msg
+                    )
+                    AppLogger.logError(
+                        "MessagesViewModel",
+                        "LoadMoreMessages failed: $msg",
+                        error,
+                        operation = "LoadMoreMessagesError",
+                        errorCategory = "MESSAGES_LOAD_MORE_ERROR"
+                    )
+                }
+            }
+        }
+    }
+
     fun selectMessageForDetails(message: MessageItem) {
         // If message text is already cached in memory, display it immediately
         if (!message.messageText.isNullOrBlank() && !message.messageText.startsWith("خطا")) {
-            AppLogger.logDebug("MessagesViewModel", "OpenCachedMessage", "Showing cached message row=${message.rowIndex}")
+            AppLogger.logDebug("MessagesViewModel", "OpenCachedMessage", "Showing cached message row=${message.rowIndex} page=${message.pageNumber}")
             _selectedMessageDetail.value = message
             return
         }
@@ -85,7 +121,7 @@ class MessagesViewModel(
 
         // Cancel any pending detail fetch job to prevent race conditions
         detailJob?.cancel()
-        AppLogger.logInfo("MessagesViewModel", "OpenMessageDetail", "Opening message row=${message.rowIndex} (unread=${!message.isRead})")
+        AppLogger.logInfo("MessagesViewModel", "OpenMessageDetail", "Opening message row=${message.rowIndex} page=${message.pageNumber} (unread=${!message.isRead})")
 
         // Fetch message text from server via Delta POST with mutex protection
         detailJob = viewModelScope.launch {
@@ -94,41 +130,27 @@ class MessagesViewModel(
 
             detailMutex.withLock {
                 val currentState = _pageState.value
-                val webFormsState = currentState.toWebFormsState()
-
-                val result = messageRepository.openMessage(
-                    buttonInputName = message.buttonInputName,
-                    state = webFormsState,
-                    scriptManagerName = currentState.scriptManagerName,
-                    updatePanelName = currentState.updatePanelName
+                val result = messageRepository.openMessageForItem(
+                    message = message,
+                    currentState = currentState
                 )
 
-                when (result) {
-                    is MessageOpenResult.Success -> {
-                        val updatedItem = message.copy(
-                            isRead = true,
-                            messageText = result.messageText
-                        )
-                        _selectedMessageDetail.value = updatedItem
-
-                        // Update in state list and chain updated WebFormsState
-                        val updatedList = _pageState.value.messages.map {
-                            if (it.rowIndex == message.rowIndex) updatedItem else it
-                        }
-                        val newUnreadCount = updatedList.count { !it.isRead }
-                        _pageState.value = _pageState.value.withUpdatedWebFormsState(result.updatedState).copy(
-                            messages = updatedList,
-                            hasUnreadMessages = newUnreadCount > 0,
-                            unreadCount = newUnreadCount
-                        )
-                        AppLogger.logInfo("MessagesViewModel", "OpenMessageDetailSuccess", "Opened row=${message.rowIndex}; remainingUnread=$newUnreadCount")
-                    }
-                    is MessageOpenResult.Failure -> {
-                        AppLogger.logError("MessagesViewModel", "Failed to load message text: ${result.error.userMessage}", result.error, operation = "OpenMessageDetailError", errorCategory = "MESSAGE_OPEN_ERROR")
-                        _selectedMessageDetail.value = message.copy(
-                            messageText = "خطا در دریافت متن پیام: ${result.error.userMessage}"
-                        )
-                    }
+                result.onSuccess { (updatedPageState, updatedItem) ->
+                    _pageState.value = updatedPageState
+                    _selectedMessageDetail.value = updatedItem
+                    AppLogger.logInfo(
+                        "MessagesViewModel",
+                        "OpenMessageDetailSuccess",
+                        "Opened row=${message.rowIndex} page=${message.pageNumber}; remainingUnread=${updatedPageState.unreadCount}"
+                    )
+                }.onFailure { err ->
+                    val errMsg = (err as? com.example.data.model.MessageError)?.userMessage
+                        ?: err.message
+                        ?: "خطای نامشخص"
+                    AppLogger.logError("MessagesViewModel", "Failed to load message text: $errMsg", err, operation = "OpenMessageDetailError", errorCategory = "MESSAGE_OPEN_ERROR")
+                    _selectedMessageDetail.value = message.copy(
+                        messageText = "خطا در دریافت متن پیام: $errMsg"
+                    )
                 }
 
                 _isDetailLoading.value = false

@@ -1,16 +1,26 @@
 package com.example.ui.viewmodel
 
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.data.logger.AppLogger
+import com.example.data.model.MandatorySurveyException
 import com.example.data.model.MealType
+import com.example.data.model.UnreadMessagesException
 import com.example.data.model.WeekNavigationDirection
 import com.example.data.model.WeeklyMenu
+import com.example.data.network.CullinanHttpClient
 import com.example.data.repository.MenuRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+
+@Immutable
+data class SurveyBlockInfo(
+    val message: String,
+    val surveyUrl: String
+)
 
 class MenuViewModel(
     private val menuRepository: MenuRepository
@@ -45,11 +55,18 @@ class MenuViewModel(
     private val _hasUnreadMessagesBlocked = MutableStateFlow(false)
     val hasUnreadMessagesBlocked: StateFlow<Boolean> = _hasUnreadMessagesBlocked.asStateFlow()
 
+    private val _surveyBlockInfo = MutableStateFlow<SurveyBlockInfo?>(null)
+    val surveyBlockInfo: StateFlow<SurveyBlockInfo?> = _surveyBlockInfo.asStateFlow()
+
     private val _weekOffset = MutableStateFlow(0)
     val weekOffset: StateFlow<Int> = _weekOffset.asStateFlow()
 
     fun clearUnreadBlocked() {
         _hasUnreadMessagesBlocked.value = false
+    }
+
+    fun clearSurveyBlocked() {
+        _surveyBlockInfo.value = null
     }
 
     fun loadInitialMenu() {
@@ -62,16 +79,38 @@ class MenuViewModel(
                 _weeklyMenu.value = menu
                 _weekOffset.value = 0
                 _hasUnreadMessagesBlocked.value = false
+                _surveyBlockInfo.value = null
                 AppLogger.logInfo("MenuViewModel", "LoadInitialMenuSuccess", "Loaded week '${menu.weekDateRange}' with credit=${menu.creditValueRials}")
             }.onFailure { error ->
-                if (error is com.example.data.model.UnreadMessagesException) {
-                    _hasUnreadMessagesBlocked.value = true
-                    _errorMessage.value = error.message
-                    AppLogger.logWarn("MenuViewModel", "LoadInitialMenuBlocked", "Blocked by ${error.unreadCount} unread messages", errorCategory = "UNREAD_MESSAGES_BLOCK")
-                } else {
-                    val msg = error.message ?: "خطا در دریافت جدول برنامه غذایی از سرور دانشگاه"
-                    _errorMessage.value = msg
-                    AppLogger.logError("MenuViewModel", "LoadInitialMenu failed: $msg", error, operation = "LoadInitialMenuFailure", errorCategory = "MENU_LOAD_ERROR")
+                when (error) {
+                    is MandatorySurveyException -> {
+                        _hasUnreadMessagesBlocked.value = false
+                        _surveyBlockInfo.value = SurveyBlockInfo(
+                            message = error.surveyMessage,
+                            surveyUrl = error.surveyUrl.ifBlank { CullinanHttpClient.SURVEY_URL }
+                        )
+                        if (_weeklyMenu.value != null) {
+                            _errorMessage.value = error.surveyMessage
+                        }
+                        AppLogger.logWarn(
+                            "MenuViewModel",
+                            "LoadInitialMenuSurveyBlocked",
+                            "Blocked by mandatory survey: ${error.surveyMessage}",
+                            errorCategory = "MANDATORY_SURVEY_BLOCK"
+                        )
+                    }
+                    is UnreadMessagesException -> {
+                        _surveyBlockInfo.value = null
+                        _hasUnreadMessagesBlocked.value = true
+                        _errorMessage.value = error.message
+                        AppLogger.logWarn("MenuViewModel", "LoadInitialMenuBlocked", "Blocked by ${error.unreadCount} unread messages", errorCategory = "UNREAD_MESSAGES_BLOCK")
+                    }
+                    else -> {
+                        _surveyBlockInfo.value = null
+                        val msg = error.message ?: "خطا در دریافت جدول برنامه غذایی از سرور دانشگاه"
+                        _errorMessage.value = msg
+                        AppLogger.logError("MenuViewModel", "LoadInitialMenu failed: $msg", error, operation = "LoadInitialMenuFailure", errorCategory = "MENU_LOAD_ERROR")
+                    }
                 }
             }
             _isLoading.value = false
@@ -105,13 +144,20 @@ class MenuViewModel(
             result.onSuccess { (updatedMenu, newOffset) ->
                 _weeklyMenu.value = updatedMenu
                 _weekOffset.value = newOffset
+                _surveyBlockInfo.value = null
                 val alert = updatedMenu.alertMessage
                 if (!alert.isNullOrBlank()) {
                     _userFeedback.value = Pair(alert, true)
                 }
                 AppLogger.logInfo("MenuViewModel", "NavigateWeekSuccess", "Moved to '${updatedMenu.weekDateRange}' (offset=$newOffset, alert=${alert != null})")
             }.onFailure { error ->
-                if (error is com.example.data.model.UnreadMessagesException) {
+                if (error is MandatorySurveyException) {
+                    _hasUnreadMessagesBlocked.value = false
+                    _surveyBlockInfo.value = SurveyBlockInfo(
+                        message = error.surveyMessage,
+                        surveyUrl = error.surveyUrl.ifBlank { CullinanHttpClient.SURVEY_URL }
+                    )
+                } else if (error is UnreadMessagesException) {
                     _hasUnreadMessagesBlocked.value = true
                 }
                 val msg = error.message ?: "خطا در جابه‌جایی هفته"

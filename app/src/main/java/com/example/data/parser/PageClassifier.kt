@@ -14,9 +14,14 @@ object PageClassifier {
     const val TYPE_LOGIN = "LOGIN"
     const val TYPE_NOTICE = "NOTICE"
     const val TYPE_MESSAGES = "MESSAGES"
+    const val TYPE_SURVEY = "SURVEY"
     const val TYPE_PROFILE = "PROFILE"
     const val TYPE_ERROR = "ERROR"
     const val TYPE_UNKNOWN = "UNKNOWN"
+
+    private val TOASTIFY_WARNING_REGEX = Regex(
+        """toastify\s*\(\s*['"][^'"]*['"]\s*,\s*['"]([^'"]+)['"]"""
+    )
 
     data class ClassificationResult(
         val pageType: String,
@@ -27,12 +32,14 @@ object PageClassifier {
         val isSessionExpired: Boolean = false,
         val hasUnreadMessages: Boolean = false,
         val unreadMessageCount: Int = 0,
-        val hasPaginationControls: Boolean = false
+        val hasPaginationControls: Boolean = false,
+        val surveyMessage: String? = null,
+        val surveyUrl: String? = null
     )
 
     /**
      * Pure, side-effect-free response classifier executed BEFORE menu parsing.
-     * Guarantees a Notice or Login page is never falsely identified as an empty reservation menu.
+     * Guarantees a Notice, Survey, or Login page is never falsely identified as an empty reservation menu.
      */
     fun classify(
         html: String,
@@ -125,10 +132,40 @@ object PageClassifier {
             return ClassificationResult(pageType = TYPE_RESERVATION, evidence = evidence, hasReservationGrid = true)
         }
 
-        // 6. Check for Messages Page (cphMain_grdContent or MyMessage.aspx)
+        // 6. Check for Mandatory Survey Page (Survey_Answer.aspx) BEFORE Messages Grid
+        // Note: Survey_Answer.aspx also uses #cphMain_grdContent and shares the master sidebar links.
+        val isSurveyUrl = finalUrl?.contains("Survey_Answer.aspx", ignoreCase = true) == true ||
+                finalUrl?.contains("/Survey/", ignoreCase = true) == true
+        val hasSurveyFormAction = doc.select("form#MainForm[action*='Survey'], form[action*='Survey_Answer']").isNotEmpty()
+        val hasSurveyAccordion = doc.select("#cphMain_hdnSelectedAccordion").isNotEmpty() &&
+                doc.select("#accordion1 h3").any { it.text().contains("نظرسنجی") }
+        val hasSurveyViewButtons = doc.select("#cphMain_grdContent input[name*='imgbtnView']").isNotEmpty()
+        if (isSurveyUrl || hasSurveyFormAction || hasSurveyAccordion || hasSurveyViewButtons) {
+            evidence.add("SURVEY_PAGE")
+            if (isSurveyUrl) evidence.add("URL_CONTAINS_SURVEY")
+            if (hasSurveyFormAction) evidence.add("FORM_ACTION_SURVEY")
+            if (hasSurveyAccordion) evidence.add("HAS_SURVEY_ACCORDION")
+            if (hasSurveyViewButtons) evidence.add("HAS_SURVEY_VIEW_BUTTONS")
+
+            val toastMsg = TOASTIFY_WARNING_REGEX.find(html)?.groupValues?.getOrNull(1)?.trim()
+                ?.takeIf { it.isNotBlank() }
+                ?: "شرکت در نظرسنجی، برای استفاده از امکان رزرو در سامانه ضروری است."
+
+            return ClassificationResult(
+                pageType = TYPE_SURVEY,
+                evidence = evidence,
+                surveyMessage = toastMsg,
+                surveyUrl = finalUrl?.takeIf { it.contains("Survey", ignoreCase = true) }
+            )
+        }
+
+        // 7. Check for Messages Page (MyMessage.aspx or message-specific controls)
         val hasMessagesTable = doc.select("#cphMain_grdContent").isNotEmpty()
         val isMessagesUrl = finalUrl?.contains("MyMessage.aspx", ignoreCase = true) == true
-        if (hasMessagesTable || isMessagesUrl) {
+        val hasMessagesFormAction = doc.select("form#MainForm[action*='MyMessage'], form[action*='MyMessage.aspx']").isNotEmpty()
+        val hasMessageRows = doc.select("#cphMain_grdContent input[name*='imgbtnMessageText'], #cphMain_pMessage").isNotEmpty()
+        val hasUnreadCountLabel = doc.select("#cphMain_lblUnreadCount").isNotEmpty()
+        if (isMessagesUrl || hasMessagesFormAction || hasMessageRows || (hasMessagesTable && hasUnreadCountLabel)) {
             evidence.add("MESSAGES_PAGE")
             if (hasMessagesTable) evidence.add("HAS_MESSAGES_GRID")
             if (isMessagesUrl) evidence.add("URL_CONTAINS_MYMESSAGE")

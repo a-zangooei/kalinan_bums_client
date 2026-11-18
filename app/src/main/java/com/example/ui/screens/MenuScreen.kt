@@ -47,6 +47,7 @@ import com.example.ui.screens.menu.CancelMealConfirmationDialog
 import com.example.ui.screens.menu.DayEmptyCard
 import com.example.ui.screens.menu.DayHeaderCard
 import com.example.ui.screens.menu.EmptyWeekCard
+import com.example.ui.screens.menu.MandatorySurveyBlockingCard
 import com.example.ui.screens.menu.MenuLoadingState
 import com.example.ui.screens.menu.MenuQuickJumpAndFilterBar
 import com.example.ui.screens.menu.MenuTopBar
@@ -55,6 +56,7 @@ import com.example.ui.screens.menu.StudentProfileDialog
 import com.example.ui.screens.menu.WeekNavigationCard
 import com.example.ui.theme.CullinanTheme
 import com.example.ui.viewmodel.MenuViewModel
+import com.example.ui.viewmodel.SurveyBlockInfo
 import kotlin.math.abs
 import kotlinx.coroutines.launch
 
@@ -68,6 +70,7 @@ fun MenuScreen(
     isLoggingOut: Boolean = false,
     profileAvatarBytes: ByteArray? = null,
     onOpenProfile: (() -> Unit)? = null,
+    onOpenSurveyWebView: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
     val weeklyMenu by viewModel.weeklyMenu.collectAsStateWithLifecycle()
@@ -79,6 +82,7 @@ fun MenuScreen(
     val errorMessage by viewModel.errorMessage.collectAsStateWithLifecycle()
     val userFeedback by viewModel.userFeedback.collectAsStateWithLifecycle()
     val weekOffset by viewModel.weekOffset.collectAsStateWithLifecycle()
+    val surveyBlockInfo by viewModel.surveyBlockInfo.collectAsStateWithLifecycle()
 
     var showProfileDialog by remember { mutableStateOf(false) }
     var mealToReserve by remember { mutableStateOf<MealItem?>(null) }
@@ -145,6 +149,8 @@ fun MenuScreen(
         snackbarHostState = snackbarHostState,
         listState = listState,
         avatarBytes = profileAvatarBytes,
+        surveyBlockInfo = surveyBlockInfo,
+        onOpenSurvey = { url -> onOpenSurveyWebView?.invoke(url) },
         onOpenProfile = {
             if (onOpenProfile != null) {
                 onOpenProfile()
@@ -245,6 +251,8 @@ internal fun MenuScreenContent(
     hasMenuForSwipe: () -> Boolean,
     swipeKey: Any,
     avatarBytes: ByteArray? = null,
+    surveyBlockInfo: SurveyBlockInfo? = null,
+    onOpenSurvey: (String) -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     PersianRtlLayout {
@@ -297,6 +305,12 @@ internal fun MenuScreenContent(
             ) {
                 if (isLoading && weeklyMenu == null) {
                     MenuLoadingState()
+                } else if (weeklyMenu == null && surveyBlockInfo != null) {
+                    MandatorySurveyBlockingCard(
+                        surveyMessage = surveyBlockInfo.message,
+                        onOpenSurvey = { onOpenSurvey(surveyBlockInfo.surveyUrl) },
+                        onRetryMenu = onRefresh
+                    )
                 } else {
                     val weekButtonsEnabled = !isLoading && !isMutating && weeklyMenu != null
 

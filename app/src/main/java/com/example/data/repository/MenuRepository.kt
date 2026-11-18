@@ -6,6 +6,7 @@ import com.example.data.logger.LogEntry
 import com.example.data.logger.LogLevel
 import com.example.data.logger.NoticeDiagnostics
 import com.example.data.logger.ParserDiagnostics
+import com.example.data.model.MandatorySurveyException
 import com.example.data.model.MealType
 import com.example.data.model.ReservationResult
 import com.example.data.model.UnreadMessagesException
@@ -90,6 +91,11 @@ class MenuRepository {
                     )
 
                     val failureException = when (classification.pageType) {
+                        PageClassifier.TYPE_SURVEY -> MandatorySurveyException(
+                            surveyMessage = classification.surveyMessage
+                                ?: "شرکت در نظرسنجی، برای استفاده از امکان رزرو در سامانه ضروری است.",
+                            surveyUrl = classification.surveyUrl ?: CullinanHttpClient.SURVEY_URL
+                        )
                         PageClassifier.TYPE_MESSAGES -> UnreadMessagesException(classification.unreadMessageCount)
                         PageClassifier.TYPE_NOTICE -> Exception("اطلاعیه در سامانه تغذیه دانشگاه فعال است و دسترسی به جدول رزرو مسدود می‌باشد")
                         PageClassifier.TYPE_LOGIN -> Exception("نشست کاری در سامانه دانشگاه منقضی شده است. لطفاً مجدداً وارد شوید")

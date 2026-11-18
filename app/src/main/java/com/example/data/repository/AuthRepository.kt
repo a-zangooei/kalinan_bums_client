@@ -155,11 +155,12 @@ class AuthRepository {
                 // Detection of successful login strictly based on 302 Location header:
                 val isRedirect = statusCode in 300..399 || location.isNotBlank()
                 val isMessagesRedirect = location.contains("MyMessage.aspx", ignoreCase = true)
+                val isSurveyRedirect = location.contains("Survey", ignoreCase = true)
                 val isDashboardRedirect = location.contains("Default.aspx", ignoreCase = true) ||
                     location.contains("Reservation", ignoreCase = true) ||
                     location.contains("/Master/", ignoreCase = true)
 
-                if (isRedirect && (isMessagesRedirect || isDashboardRedirect)) {
+                if (isRedirect && (isMessagesRedirect || isDashboardRedirect || isSurveyRedirect)) {
                     AppLogger.log(
                         LogEntry(
                             timestamp = "",
@@ -167,7 +168,7 @@ class AuthRepository {
                             component = "AuthRepository",
                             operation = "LoginSuccess",
                             flowId = flowId,
-                            message = "User successfully authenticated (HTTP $statusCode -> Location: $location, hasUnreadMessages: $isMessagesRedirect)"
+                            message = "User successfully authenticated (HTTP $statusCode -> Location: $location, hasUnreadMessages: $isMessagesRedirect, hasMandatorySurvey: $isSurveyRedirect)"
                         )
                     )
 
@@ -177,7 +178,8 @@ class AuthRepository {
                             username = usernamePlain,
                             studentNumber = usernamePlain,
                             nationalId = "",
-                            hasUnreadMessages = isMessagesRedirect
+                            hasUnreadMessages = isMessagesRedirect,
+                            hasMandatorySurvey = isSurveyRedirect
                         )
                     )
                 } else {

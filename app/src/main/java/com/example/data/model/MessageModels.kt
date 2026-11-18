@@ -15,7 +15,8 @@ data class MessageItem(
     val isRead: Boolean,
     val readDate: String,
     val readTime: String,
-    val messageText: String? = null
+    val messageText: String? = null,
+    val pageNumber: Int = 1
 )
 
 /**
@@ -55,7 +56,7 @@ sealed class MessageError(val userMessage: String) : Exception(userMessage) {
 }
 
 /**
- * State representing the loaded messages page, including ASP.NET ViewState and unlock status.
+ * State representing the loaded messages page, including ASP.NET ViewState and pagination status.
  */
 @Immutable
 data class MessagesPageState(
@@ -70,8 +71,17 @@ data class MessagesPageState(
     val hasPaginationControls: Boolean = false,
     val isReservationUnlocked: Boolean = false,
     val isLoading: Boolean = false,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val currentServerPage: Int = 1,
+    val loadedPagesCount: Int = 1,
+    val totalKnownPages: Int = 1,
+    val nextPageEventTarget: String? = null,
+    val nextPageEventArgument: String? = null,
+    val isLoadingMore: Boolean = false
 ) {
+    val hasNextPage: Boolean
+        get() = !nextPageEventTarget.isNullOrBlank() && !nextPageEventArgument.isNullOrBlank()
+
     fun toWebFormsState(): WebFormsState = WebFormsState(
         viewState = viewState,
         viewStateGenerator = viewStateGenerator.ifBlank { "87AF9C2D" },
@@ -88,3 +98,8 @@ data class MessagesPageState(
 class UnreadMessagesException(
     val unreadCount: Int = 1
 ) : Exception("پیام خوانده‌نشده در سامانه وجود دارد. منوی رزرو غذا تا زمان خواندن پیام‌ها قفل می‌باشد")
+
+class MandatorySurveyException(
+    val surveyMessage: String = "شرکت در نظرسنجی، برای استفاده از امکان رزرو در سامانه ضروری است.",
+    val surveyUrl: String = ""
+) : Exception(surveyMessage)

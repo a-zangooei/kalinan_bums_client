@@ -2,6 +2,7 @@ package com.example.data.repository
 
 import com.example.data.logger.AppLogger
 import com.example.data.logger.LogContext
+import com.example.data.model.MandatorySurveyException
 import com.example.data.model.UnreadMessagesException
 import com.example.data.model.WeeklyMenu
 import com.example.data.network.CullinanHttpClient
@@ -92,6 +93,11 @@ internal object MenuDeltaExecutor {
                 )
                 return Outcome.Failure(
                     when (classification.pageType) {
+                        PageClassifier.TYPE_SURVEY -> MandatorySurveyException(
+                            surveyMessage = classification.surveyMessage
+                                ?: "شرکت در نظرسنجی، برای استفاده از امکان رزرو در سامانه ضروری است.",
+                            surveyUrl = classification.surveyUrl ?: CullinanHttpClient.SURVEY_URL
+                        )
                         PageClassifier.TYPE_MESSAGES -> UnreadMessagesException(classification.unreadMessageCount)
                         PageClassifier.TYPE_LOGIN -> Exception("نشست کاری شما در سامانه منقضی شده است. لطفاً مجدداً وارد شوید.")
                         PageClassifier.TYPE_NOTICE -> Exception("اطلاعیه سامانه دسترسی به برنامه غذایی را مسدود کرده است.")
