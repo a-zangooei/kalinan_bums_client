@@ -266,29 +266,23 @@ __EVENTTARGET=ctl00%24logout&__EVENTARGUMENT=&__VIEWSTATE=<1644 chars>&__VIEWSTA
 
 ---
 
-## ۹. وضعیت فعلی در کد برنامه و الگوی پیشنهادی ادغام
+## ۹. وضعیت فعلی در کد برنامه و معماری پیاده‌سازی‌شده
 
-### وضعیت کنونی کلاینت (پیش از پیاده‌سازی کامل پروفایل)
-1. در حال حاضر درخواست مستقیمی به `/MyCullinan/MyProfile.aspx` یا `/UserControls/UserImage.ashx` در برنامه پیاده‌سازی **نشده است**.
-2. دیالوگ فعلی پروفایل (`StudentProfileDialog` در `MenuDialogs.kt`) هنگام لمس آیکون پروفایل در بالای منو باز می‌شود و تنها سه مقدار پایه (`studentName`، `studentNumber`، `creditFormatted`) را از `WeeklyMenu` نمایش می‌دهد.
-3. **⚠️ ناهماهنگی مهم کشف‌شده در `ReservationHtmlParser.kt`:**  
-   در کد کنونی، برای Fallback خواندن مشخصات دانشجو از نوار کناری (خطوط ۸۱ تا ۸۶ `ReservationHtmlParser.kt`)، شناسه `#lblIdNumber` به `studentName` و `#divUsername` به `studentNumber` نگاشت شده است؛ در حالی که در HTML واقعی سرور (`MyProfile_page_sanitized.html`):
-   - `#divUsername` حاوی **نام و نام خانوادگی کامل** است؛
-   - `#lblIdNumber` حاوی **شماره شناسایی (شناسه کاربری)** است.  
-   در زمان ادغام یا بازبینی `ReservationHtmlParser.kt`، این جابه‌جایی باید اصلاح گردد.
-4. در `PageClassifier.kt` هنوز نوع `TYPE_PROFILE` تعریف نشده است.
+ویژگی کامل «پروفایل من» در کلاینت اندروید مطابق مشخصات این مستند پیاده‌سازی شده است:
 
-### معماری پیشنهادی برای ادغام با آیکون پروفایل
-1. **مدل دامنه (`UserProfile`):**  
-   شامل تمامی فیلدهای جدول بخش ۴ (همه nullable و مقدار `"..."` تبدیل‌شده به `null`)، بعلاوه مقدار پارس‌شده اعتبار سلف و رستوران (`Long?` ریال با پشتیبانی از `-` پسوندی) و نسخه سامانه (`#lblVersion`).
-2. **`PageClassifier.TYPE_PROFILE` و `ProfileParser`:**  
-   - افزودن تشخیص `TYPE_PROFILE` در `PageClassifier` با بررسی `form#MainForm[action*="MyProfile.aspx"]` یا وجود `#cphMain_lblNationalCode` + `#cphMain_pnlContents`.
-   - پارس با Jsoup بر اساس شناسه‌ها؛ در صورت نبود `#cphMain_lblNationalCode` یا `#cphMain_lblName`، خروجی به عنوان **ساختار ناشناخته / خطای پارسر** برگردانده شود تا صفحه به اشتباه با مقادیر خالی نمایش داده نشود.
-3. **`ProfileRepository`:**  
-   - واکشی با `GET /MyCullinan/MyProfile.aspx` پشت `Mutex` (یا هماهنگ با کلاینت نشست)، بدون تکرار خودکار نامحدود و با تشخیص ریدایرکت‌های `Login.aspx` (انقضای نشست) و `MyMessage.aspx` (وجود پیام خوانده‌نشده).
-   - واکشی تصویر با `GET /UserControls/UserImage.ashx` تنها پس از احراز معتبر بودن نشست و با بررسی Magic Bytes تصویر (`FF D8 FF` / PNG).
-4. **تجربه کاربری (UI):**  
-   - هنگام لمس آیکون پروفایل، فوراً نام، شماره شناسایی و اعتبارات کش‌شده از نوار کناری آخرین صفحه نمایش داده شوند و هم‌زمان جزئیات کامل و عکس از `MyProfile.aspx` / `UserImage.ashx` به‌صورت ناهمگام بارگذاری گردند، با مدیریت شفاف حالت‌های Loading، خطا و انقضای نشست.
+1. **مدل دامنه و نتیجه‌ی واکشی (`UserProfile` و `ProfileFetchOutcome`):**  
+   شامل تمامی ۲۱ فیلد پروفایل و ۵ فیلد نوار کناری (تماماً nullable با تبدیل خودکار `"..."` به `null`)، پارس اعتبار سلف و رستوران (`Long?` به ریال با پشتیبانی از علامت `-` پسوندی و نرمال‌سازی `ي` عربی) و ثبت نسخه سامانه (`#lblVersion`).
+2. **طبقه‌بندی و پارسر (`PageClassifier.TYPE_PROFILE` و `ProfileParser`):**  
+   - تشخیص قطعی `TYPE_PROFILE` در `PageClassifier` بر اساس `form#MainForm[action*="MyProfile.aspx"]` و `#cphMain_pnlContents` / `#cphMain_lblNationalCode`.
+   - ساختار Fail-Closed در `ProfileParser` (بازگرداندن خطا در صورت غیبت `#cphMain_pnlContents` یا فیلدهای کلیدی).
+3. **اصلاح `ReservationHtmlParser.kt`:**  
+   ناهمگونی قبلی Fallback نوار کناری برطرف شده و `#divUsername` به `studentName` و `#lblIdNumber` به `studentNumber` نگاشت می‌شود.
+4. **مخزن و دریافت تصویر (`ProfileRepository`):**  
+   - واکشی `GET /MyCullinan/MyProfile.aspx` با `executeCallNoRedirect` و `Mutex` مجزا؛ تشخیص دقیق ریدایرکت‌های `Login.aspx` (انقضای نشست) و `MyMessage.aspx` (قفل پیام خوانده‌نشده).
+   - واکشی تصویر با `GET /UserControls/UserImage.ashx`، پذیرش `image/jpg` / `image/jpeg` / `image/png` و اعتبارسنجی بایت‌های جادویی تصویر (`FF D8 FF` / `89 50 4E 47`) پیش از نمایش.
+5. **لایه نمایش و امنیت (`ProfileSheet` و `LogSanitizer`):**  
+   - نمایش فوری داده‌های کش‌شده نوار کناری هنگام باز کردن شیت پروفایل و بارگذاری ناهمگام جزئیات کامل و عکس، همراه با ماسک پیش‌فرض فیلدهای حساس، پشتیبانی از `FLAG_SECURE` و پاک‌سازی PII از لاگ‌ها در `LogSanitizer`.
+   - پوشش کامل تست‌های واحد و UI در `ProfileFeatureUnitTest.kt` و `ProfileSheetComposeTest.kt`.
 
 ---
 

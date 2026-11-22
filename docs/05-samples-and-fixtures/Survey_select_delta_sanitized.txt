@@ -1,0 +1,935 @@
+1|#||4|67422|updatePanel|UpdatePanel1|
+                        
+    <input name="ctl00$cphMain$hdnSelectedAccordion" type="hidden" id="cphMain_hdnSelectedAccordion" value="1" />
+    <link href="../Styles/CSS/FoodSoft.css" rel="stylesheet" type="text/css" />
+    <div id="cphMain_alertBox" class="alertBox" style="display:none;">
+        <label id="cphMain_alertBoxValue">
+        </label>
+        <div class="topClose">
+            <img src="../Images/Style/esc.png" />
+        </div>
+    </div>
+    <div id="accordion1">
+        <h3 style="background-color: #fcbd22; color: #000; border-radius: 5px; border: 1px solid #545454;">نظرسنجی ها</h3>
+        <div style="background-color: #ffffff; border-radius: 0px 0px 5px 5px; border: 1px solid #cec9c9;">
+            <div class="GridviewStyle" style="margin: 1%;">
+                <div>
+	<table class="GridviewStyle" cellspacing="0" rules="all" border="1" id="cphMain_grdContent" style="width:100%;border-collapse:collapse;">
+		<tr class="HeaderStyle">
+			<th scope="col">ردیف</th><th scope="col">نظرسنجی</th><th scope="col" style="width:10%;">وضعیت</th><th scope="col">تاریخ شروع</th><th scope="col">تاریخ پایان</th><th scope="col">مشاهده</th>
+		</tr><tr>
+			<td style="width:5%;">
+                                1
+                            </td><td style="width:55%;">کیفیت غذای سلف در مهر و آبان 1405</td><td style="width:10%;">
+                                فعال
+                            </td><td style="width:15%;">1405/08/26</td><td style="width:15%;">1405/09/06</td><td style="width:5%;">
+                                <input type="image" name="ctl00$cphMain$grdContent$ctl02$imgbtnView" id="cphMain_grdContent_imgbtnView_0" title="مشاهده" formnovalidate="" src="../Images/Icon/Answer16.png" onclick="SetValue(1);" />
+                            </td>
+		</tr>
+	</table>
+</div>
+                <input name="ctl00$cphMain$hdnId" type="hidden" id="cphMain_hdnId" />
+            </div>
+        </div>
+        <h3 style="background-color: #fcbd22; color: #000; border-radius: 5px; border: 1px solid #545454;">نظرسنجی انتخاب شده</h3>
+        <div style="background-color: #ffffff; border-radius: 0px 0px 5px 5px; border: 1px solid #cec9c9;">
+            <div class="GridviewStyle">
+                <div>
+	<table class="GridviewStyle_Survey" cellspacing="0" rules="all" border="1" id="cphMain_grdQuestion" style="width:100%;border-collapse:collapse;">
+		<tr>
+			<td style="width:5%;">
+                                1
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_0">بهداشت ظروف ، قاشق و چنگال سلف را چگونه ارزیابی میکنید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl02$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_0" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl02$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_0" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_0" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_0" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_0_0_0" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl02$chkbxLstAnswer$0" value="687" /><label for="cphMain_grdQuestion_chkbxLstAnswer_0_0_0">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_0_1_0" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl02$chkbxLstAnswer$1" value="688" /><label for="cphMain_grdQuestion_chkbxLstAnswer_0_1_0">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_0_2_0" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl02$chkbxLstAnswer$2" value="689" /><label for="cphMain_grdQuestion_chkbxLstAnswer_0_2_0">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_0_3_0" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl02$chkbxLstAnswer$3" value="698" /><label for="cphMain_grdQuestion_chkbxLstAnswer_0_3_0">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                2
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_1">در مورد قرار گرفتن کرم بیسکویت در وعده صبحانه چه نظری دارید؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl03$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_1" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl03$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_1" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_1" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_1" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_1_0_1" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl03$chkbxLstAnswer$0" value="691" /><label for="cphMain_grdQuestion_chkbxLstAnswer_1_0_1">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_1_1_1" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl03$chkbxLstAnswer$1" value="692" /><label for="cphMain_grdQuestion_chkbxLstAnswer_1_1_1">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_1_2_1" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl03$chkbxLstAnswer$2" value="697" /><label for="cphMain_grdQuestion_chkbxLstAnswer_1_2_1">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_1_3_1" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl03$chkbxLstAnswer$3" value="699" /><label for="cphMain_grdQuestion_chkbxLstAnswer_1_3_1">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_1_4_1" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl03$chkbxLstAnswer$4" value="779" /><label for="cphMain_grdQuestion_chkbxLstAnswer_1_4_1">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                3
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_2">میزان رضایت شما از قرار گرفتن نان تست در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl04$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_2" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl04$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_2" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_2" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_2" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_2_0_2" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl04$chkbxLstAnswer$0" value="693" /><label for="cphMain_grdQuestion_chkbxLstAnswer_2_0_2">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_2_1_2" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl04$chkbxLstAnswer$1" value="694" /><label for="cphMain_grdQuestion_chkbxLstAnswer_2_1_2">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_2_2_2" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl04$chkbxLstAnswer$2" value="700" /><label for="cphMain_grdQuestion_chkbxLstAnswer_2_2_2">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_2_3_2" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl04$chkbxLstAnswer$3" value="701" /><label for="cphMain_grdQuestion_chkbxLstAnswer_2_3_2">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_2_4_2" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl04$chkbxLstAnswer$4" value="780" /><label for="cphMain_grdQuestion_chkbxLstAnswer_2_4_2">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                4
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_3">میزان رضایت شما از قرار گرفتن نان لواش در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl05$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_3" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl05$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_3" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_3" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_3" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_3_0_3" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl05$chkbxLstAnswer$0" value="695" /><label for="cphMain_grdQuestion_chkbxLstAnswer_3_0_3">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_3_1_3" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl05$chkbxLstAnswer$1" value="696" /><label for="cphMain_grdQuestion_chkbxLstAnswer_3_1_3">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_3_2_3" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl05$chkbxLstAnswer$2" value="702" /><label for="cphMain_grdQuestion_chkbxLstAnswer_3_2_3">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_3_3_3" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl05$chkbxLstAnswer$3" value="703" /><label for="cphMain_grdQuestion_chkbxLstAnswer_3_3_3">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_3_4_3" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl05$chkbxLstAnswer$4" value="781" /><label for="cphMain_grdQuestion_chkbxLstAnswer_3_4_3">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                5
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_4">میزان رضایت شما از قرار گرفتن پنیر خامه ای در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl06$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_4" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl06$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_4" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_4" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_4" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_4_0_4" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl06$chkbxLstAnswer$0" value="705" /><label for="cphMain_grdQuestion_chkbxLstAnswer_4_0_4">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_4_1_4" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl06$chkbxLstAnswer$1" value="706" /><label for="cphMain_grdQuestion_chkbxLstAnswer_4_1_4">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_4_2_4" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl06$chkbxLstAnswer$2" value="707" /><label for="cphMain_grdQuestion_chkbxLstAnswer_4_2_4">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_4_3_4" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl06$chkbxLstAnswer$3" value="708" /><label for="cphMain_grdQuestion_chkbxLstAnswer_4_3_4">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_4_4_4" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl06$chkbxLstAnswer$4" value="782" /><label for="cphMain_grdQuestion_chkbxLstAnswer_4_4_4">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                6
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_5">میزان رضایت شما از قرار گرفتن کره بادام زمینی در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl07$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_5" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl07$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_5" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_5" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_5" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_5_0_5" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl07$chkbxLstAnswer$0" value="709" /><label for="cphMain_grdQuestion_chkbxLstAnswer_5_0_5">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_5_1_5" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl07$chkbxLstAnswer$1" value="710" /><label for="cphMain_grdQuestion_chkbxLstAnswer_5_1_5">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_5_2_5" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl07$chkbxLstAnswer$2" value="711" /><label for="cphMain_grdQuestion_chkbxLstAnswer_5_2_5">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_5_3_5" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl07$chkbxLstAnswer$3" value="712" /><label for="cphMain_grdQuestion_chkbxLstAnswer_5_3_5">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_5_4_5" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl07$chkbxLstAnswer$4" value="783" /><label for="cphMain_grdQuestion_chkbxLstAnswer_5_4_5">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                7
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_6">میزان رضایت شما از قرار گرفتن بیسکویت صبحانه در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl08$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_6" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl08$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_6" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_6" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_6" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_6_0_6" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl08$chkbxLstAnswer$0" value="713" /><label for="cphMain_grdQuestion_chkbxLstAnswer_6_0_6">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_6_1_6" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl08$chkbxLstAnswer$1" value="714" /><label for="cphMain_grdQuestion_chkbxLstAnswer_6_1_6">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_6_2_6" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl08$chkbxLstAnswer$2" value="715" /><label for="cphMain_grdQuestion_chkbxLstAnswer_6_2_6">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_6_3_6" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl08$chkbxLstAnswer$3" value="716" /><label for="cphMain_grdQuestion_chkbxLstAnswer_6_3_6">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_6_4_6" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl08$chkbxLstAnswer$4" value="784" /><label for="cphMain_grdQuestion_chkbxLstAnswer_6_4_6">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                8
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_7">میزان رضایت شما از قرار گرفتن نسکافه در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl09$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_7" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl09$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_7" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_7" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_7" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_7_0_7" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl09$chkbxLstAnswer$0" value="717" /><label for="cphMain_grdQuestion_chkbxLstAnswer_7_0_7">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_7_1_7" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl09$chkbxLstAnswer$1" value="718" /><label for="cphMain_grdQuestion_chkbxLstAnswer_7_1_7">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_7_2_7" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl09$chkbxLstAnswer$2" value="719" /><label for="cphMain_grdQuestion_chkbxLstAnswer_7_2_7">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_7_3_7" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl09$chkbxLstAnswer$3" value="720" /><label for="cphMain_grdQuestion_chkbxLstAnswer_7_3_7">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_7_4_7" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl09$chkbxLstAnswer$4" value="785" /><label for="cphMain_grdQuestion_chkbxLstAnswer_7_4_7">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                9
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_8">میزان رضایت شما از قرار گرفتن مغز بادام زمینی در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl10$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_8" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl10$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_8" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_8" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_8" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_8_0_8" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl10$chkbxLstAnswer$0" value="721" /><label for="cphMain_grdQuestion_chkbxLstAnswer_8_0_8">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_8_1_8" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl10$chkbxLstAnswer$1" value="722" /><label for="cphMain_grdQuestion_chkbxLstAnswer_8_1_8">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_8_2_8" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl10$chkbxLstAnswer$2" value="723" /><label for="cphMain_grdQuestion_chkbxLstAnswer_8_2_8">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_8_3_8" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl10$chkbxLstAnswer$3" value="724" /><label for="cphMain_grdQuestion_chkbxLstAnswer_8_3_8">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_8_4_8" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl10$chkbxLstAnswer$4" value="786" /><label for="cphMain_grdQuestion_chkbxLstAnswer_8_4_8">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                10
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_9">میزان رضایت شما از قرار گرفتن خامه شکلاتی در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl11$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_9" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl11$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_9" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_9" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_9" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_9_0_9" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl11$chkbxLstAnswer$0" value="725" /><label for="cphMain_grdQuestion_chkbxLstAnswer_9_0_9">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_9_1_9" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl11$chkbxLstAnswer$1" value="726" /><label for="cphMain_grdQuestion_chkbxLstAnswer_9_1_9">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_9_2_9" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl11$chkbxLstAnswer$2" value="727" /><label for="cphMain_grdQuestion_chkbxLstAnswer_9_2_9">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_9_3_9" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl11$chkbxLstAnswer$3" value="728" /><label for="cphMain_grdQuestion_chkbxLstAnswer_9_3_9">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_9_4_9" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl11$chkbxLstAnswer$4" value="787" /><label for="cphMain_grdQuestion_chkbxLstAnswer_9_4_9">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                11
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_10">میزان رضایت شما از قرار گرفتن غلات صبحانه در وعده صبحانه چیست؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl12$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_10" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl12$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_10" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_10" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_10" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_10_0_10" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl12$chkbxLstAnswer$0" value="729" /><label for="cphMain_grdQuestion_chkbxLstAnswer_10_0_10">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_10_1_10" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl12$chkbxLstAnswer$1" value="730" /><label for="cphMain_grdQuestion_chkbxLstAnswer_10_1_10">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_10_2_10" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl12$chkbxLstAnswer$2" value="731" /><label for="cphMain_grdQuestion_chkbxLstAnswer_10_2_10">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_10_3_10" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl12$chkbxLstAnswer$3" value="732" /><label for="cphMain_grdQuestion_chkbxLstAnswer_10_3_10">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_10_4_10" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl12$chkbxLstAnswer$4" value="788" /><label for="cphMain_grdQuestion_chkbxLstAnswer_10_4_10">از وعده صبحانه استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                12
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_11">میزان رضایت شما از دورچین ( ماست تک نفره ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl13$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_11" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl13$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_11" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_11" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_11" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_11_0_11" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl13$chkbxLstAnswer$0" value="733" /><label for="cphMain_grdQuestion_chkbxLstAnswer_11_0_11">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_11_1_11" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl13$chkbxLstAnswer$1" value="734" /><label for="cphMain_grdQuestion_chkbxLstAnswer_11_1_11">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_11_2_11" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl13$chkbxLstAnswer$2" value="735" /><label for="cphMain_grdQuestion_chkbxLstAnswer_11_2_11">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_11_3_11" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl13$chkbxLstAnswer$3" value="736" /><label for="cphMain_grdQuestion_chkbxLstAnswer_11_3_11">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                13
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_12">میزان رضایت شما از دورچین ( ماست موسیر تک نفره ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl14$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_12" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl14$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_12" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_12" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_12" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_12_0_12" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl14$chkbxLstAnswer$0" value="737" /><label for="cphMain_grdQuestion_chkbxLstAnswer_12_0_12">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_12_1_12" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl14$chkbxLstAnswer$1" value="738" /><label for="cphMain_grdQuestion_chkbxLstAnswer_12_1_12">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_12_2_12" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl14$chkbxLstAnswer$2" value="739" /><label for="cphMain_grdQuestion_chkbxLstAnswer_12_2_12">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_12_3_12" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl14$chkbxLstAnswer$3" value="740" /><label for="cphMain_grdQuestion_chkbxLstAnswer_12_3_12">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                14
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_13">میزان رضایت شما از دورچین ( دوغ تک نفره ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl15$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_13" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl15$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_13" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_13" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_13" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_13_0_13" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl15$chkbxLstAnswer$0" value="741" /><label for="cphMain_grdQuestion_chkbxLstAnswer_13_0_13">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_13_1_13" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl15$chkbxLstAnswer$1" value="742" /><label for="cphMain_grdQuestion_chkbxLstAnswer_13_1_13">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_13_2_13" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl15$chkbxLstAnswer$2" value="743" /><label for="cphMain_grdQuestion_chkbxLstAnswer_13_2_13">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_13_3_13" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl15$chkbxLstAnswer$3" value="744" /><label for="cphMain_grdQuestion_chkbxLstAnswer_13_3_13">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                15
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_14">میزان رضایت شما از دورچین ( سوپ ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl16$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_14" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl16$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_14" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_14" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_14" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_14_0_14" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl16$chkbxLstAnswer$0" value="745" /><label for="cphMain_grdQuestion_chkbxLstAnswer_14_0_14">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_14_1_14" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl16$chkbxLstAnswer$1" value="746" /><label for="cphMain_grdQuestion_chkbxLstAnswer_14_1_14">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_14_2_14" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl16$chkbxLstAnswer$2" value="747" /><label for="cphMain_grdQuestion_chkbxLstAnswer_14_2_14">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_14_3_14" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl16$chkbxLstAnswer$3" value="748" /><label for="cphMain_grdQuestion_chkbxLstAnswer_14_3_14">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                16
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_15">میزان رضایت شما از دورچین ( ترشی ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl17$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_15" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl17$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_15" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_15" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_15" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_15_0_15" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl17$chkbxLstAnswer$0" value="749" /><label for="cphMain_grdQuestion_chkbxLstAnswer_15_0_15">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_15_1_15" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl17$chkbxLstAnswer$1" value="750" /><label for="cphMain_grdQuestion_chkbxLstAnswer_15_1_15">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_15_2_15" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl17$chkbxLstAnswer$2" value="751" /><label for="cphMain_grdQuestion_chkbxLstAnswer_15_2_15">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_15_3_15" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl17$chkbxLstAnswer$3" value="752" /><label for="cphMain_grdQuestion_chkbxLstAnswer_15_3_15">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                17
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_16">میزان رضایت شما از دورچین ( زیتون پرورده ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl18$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_16" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl18$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_16" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_16" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_16" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_16_0_16" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl18$chkbxLstAnswer$0" value="753" /><label for="cphMain_grdQuestion_chkbxLstAnswer_16_0_16">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_16_1_16" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl18$chkbxLstAnswer$1" value="754" /><label for="cphMain_grdQuestion_chkbxLstAnswer_16_1_16">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_16_2_16" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl18$chkbxLstAnswer$2" value="755" /><label for="cphMain_grdQuestion_chkbxLstAnswer_16_2_16">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_16_3_16" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl18$chkbxLstAnswer$3" value="756" /><label for="cphMain_grdQuestion_chkbxLstAnswer_16_3_16">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                18
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_17">میزان رضایت شما از دورچین ( دلستر ) چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl19$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_17" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl19$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_17" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_17" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_17" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_17_0_17" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl19$chkbxLstAnswer$0" value="757" /><label for="cphMain_grdQuestion_chkbxLstAnswer_17_0_17">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_17_1_17" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl19$chkbxLstAnswer$1" value="758" /><label for="cphMain_grdQuestion_chkbxLstAnswer_17_1_17">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_17_2_17" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl19$chkbxLstAnswer$2" value="759" /><label for="cphMain_grdQuestion_chkbxLstAnswer_17_2_17">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_17_3_17" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl19$chkbxLstAnswer$3" value="760" /><label for="cphMain_grdQuestion_chkbxLstAnswer_17_3_17">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                19
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_18">آیا موافق تکرار غذاهای پر طرفدار مانند زرشک پلو ، کباب کوبیده و ... در برنامه هفتگی هستید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl20$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_18" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl20$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_18" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_18" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_18" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_18_0_18" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl20$chkbxLstAnswer$0" value="761" /><label for="cphMain_grdQuestion_chkbxLstAnswer_18_0_18">بله</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_18_1_18" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl20$chkbxLstAnswer$1" value="762" /><label for="cphMain_grdQuestion_chkbxLstAnswer_18_1_18">خیر</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                20
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_19">کیفیت سالاد الویه را چگونه ارزیابی میکنید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl21$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_19" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl21$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_19" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_19" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_19" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_19_0_19" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl21$chkbxLstAnswer$0" value="763" /><label for="cphMain_grdQuestion_chkbxLstAnswer_19_0_19">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_19_1_19" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl21$chkbxLstAnswer$1" value="764" /><label for="cphMain_grdQuestion_chkbxLstAnswer_19_1_19">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_19_2_19" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl21$chkbxLstAnswer$2" value="765" /><label for="cphMain_grdQuestion_chkbxLstAnswer_19_2_19">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_19_3_19" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl21$chkbxLstAnswer$3" value="766" /><label for="cphMain_grdQuestion_chkbxLstAnswer_19_3_19">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_19_4_19" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl21$chkbxLstAnswer$4" value="789" /><label for="cphMain_grdQuestion_chkbxLstAnswer_19_4_19">از وعده شام استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                21
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_20">کیفیت ساندویچ سرد فعلی را چگونه ارزیابی میکنید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl22$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_20" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl22$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_20" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_20" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_20" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_20_0_20" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl22$chkbxLstAnswer$0" value="767" /><label for="cphMain_grdQuestion_chkbxLstAnswer_20_0_20">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_20_1_20" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl22$chkbxLstAnswer$1" value="768" /><label for="cphMain_grdQuestion_chkbxLstAnswer_20_1_20">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_20_2_20" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl22$chkbxLstAnswer$2" value="769" /><label for="cphMain_grdQuestion_chkbxLstAnswer_20_2_20">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_20_3_20" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl22$chkbxLstAnswer$3" value="770" /><label for="cphMain_grdQuestion_chkbxLstAnswer_20_3_20">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                22
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_21">کیفیت کنسرو لوبیا را چگونه ارزیابی میکنید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl23$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_21" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl23$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_21" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_21" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_21" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_21_0_21" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl23$chkbxLstAnswer$0" value="771" /><label for="cphMain_grdQuestion_chkbxLstAnswer_21_0_21">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_21_1_21" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl23$chkbxLstAnswer$1" value="772" /><label for="cphMain_grdQuestion_chkbxLstAnswer_21_1_21">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_21_2_21" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl23$chkbxLstAnswer$2" value="773" /><label for="cphMain_grdQuestion_chkbxLstAnswer_21_2_21">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_21_3_21" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl23$chkbxLstAnswer$3" value="774" /><label for="cphMain_grdQuestion_chkbxLstAnswer_21_3_21">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_21_4_21" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl23$chkbxLstAnswer$4" value="790" /><label for="cphMain_grdQuestion_chkbxLstAnswer_21_4_21">از وعده شام استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                23
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_22">کیفیت کشک و بادمجان آماده را چگونه ارزیابی میکنید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl24$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_22" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl24$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_22" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_22" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_22" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_22_0_22" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl24$chkbxLstAnswer$0" value="775" /><label for="cphMain_grdQuestion_chkbxLstAnswer_22_0_22">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_22_1_22" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl24$chkbxLstAnswer$1" value="776" /><label for="cphMain_grdQuestion_chkbxLstAnswer_22_1_22">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_22_2_22" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl24$chkbxLstAnswer$2" value="777" /><label for="cphMain_grdQuestion_chkbxLstAnswer_22_2_22">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_22_3_22" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl24$chkbxLstAnswer$3" value="778" /><label for="cphMain_grdQuestion_chkbxLstAnswer_22_3_22">ضعیف</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_22_4_22" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl24$chkbxLstAnswer$4" value="791" /><label for="cphMain_grdQuestion_chkbxLstAnswer_22_4_22">از وعده شام استفاده نمیکنم</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                24
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_23">چه اقلامی را برای اضافه شدن به پک صبحانه پیشنهاد میکنید ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl25$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_23" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl25$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_23" value="3" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_23" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            
+                                            <textarea name="ctl00$cphMain$grdQuestion$ctl25$txtAnswer" rows="2" cols="20" id="cphMain_grdQuestion_txtAnswer_23" style="width: 100%">
+</textarea>
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                25
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_24">چه اقلامی را برای اضافه شدن به پک مواد غذایی خام پیشنهاد میکنید؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl26$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_24" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl26$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_24" value="3" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_24" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            
+                                            <textarea name="ctl00$cphMain$grdQuestion$ctl26$txtAnswer" rows="2" cols="20" id="cphMain_grdQuestion_txtAnswer_24" style="width: 100%">
+</textarea>
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                26
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_25">چه اقلامی را برای اضافه شدن به منوی ناهار پیشنهاد میکنید؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl27$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_25" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl27$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_25" value="3" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_25" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            
+                                            <textarea name="ctl00$cphMain$grdQuestion$ctl27$txtAnswer" rows="2" cols="20" id="cphMain_grdQuestion_txtAnswer_25" style="width: 100%">
+</textarea>
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr><tr>
+			<td style="width:5%;">
+                                27
+                            </td><td style="width:95%;">
+                               
+                                <span id="cphMain_grdQuestion_Label1_26">نظر کلی شما در مورد سلف و خدمات تغذیه دانشگاه چگونه است ؟ حداکثر پاسخ مجاز 1</span>
+                                
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl28$HiddenMaxAnswer" id="cphMain_grdQuestion_HiddenMaxAnswer_26" value="1" />
+                                <input type="hidden" name="ctl00$cphMain$grdQuestion$ctl28$hdnQuestionType" id="cphMain_grdQuestion_hdnQuestionType_26" value="1" />
+                            </td><td style="width:0%;">
+                                <tr>
+                                    <td></td>
+                                    <td colspan='999'>
+                                        <div id="cphMain_grdQuestion_pnlAnswer_26" class="GridviewStyle_Detail_Survey" style="display: block; width: 100%">
+				
+                                            
+                                            <table id="cphMain_grdQuestion_chkbxLstAnswer_26" style="width: 100%">
+					<tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_26_0_26" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl28$chkbxLstAnswer$0" value="792" /><label for="cphMain_grdQuestion_chkbxLstAnswer_26_0_26">خوب</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_26_1_26" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl28$chkbxLstAnswer$1" value="793" /><label for="cphMain_grdQuestion_chkbxLstAnswer_26_1_26">عالی</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_26_2_26" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl28$chkbxLstAnswer$2" value="794" /><label for="cphMain_grdQuestion_chkbxLstAnswer_26_2_26">متوسط</label></td>
+					</tr><tr>
+						<td><input id="cphMain_grdQuestion_chkbxLstAnswer_26_3_26" type="checkbox" name="ctl00$cphMain$grdQuestion$ctl28$chkbxLstAnswer$3" value="795" /><label for="cphMain_grdQuestion_chkbxLstAnswer_26_3_26">ضعیف</label></td>
+					</tr>
+				</table>
+                                            
+                                        
+			</div>
+                                    </td>
+                                </tr>
+                            </td>
+		</tr>
+	</table>
+</div>
+            </div>
+            <div class="srcDiv">
+                <input name="ctl00$cphMain$btnSave" type="submit" id="cphMain_btnSave" value="ذخیره" />
+            </div>
+        </div>
+    </div>
+
+                    |0|hiddenField|__EVENTTARGET||0|hiddenField|__EVENTARGUMENT||21|hiddenField|__VIEWSTATE|VIEWSTATE_PLACEHOLDER|8|hiddenField|__VIEWSTATEGENERATOR|4D6A1972|0|hiddenField|__VIEWSTATEENCRYPTED||0|asyncPostBackControlIDs|||0|postBackControlIDs|||32|updatePanelIDs||tctl00$UpdatePanel1,UpdatePanel1|0|childUpdatePanelIDs|||31|panelsToRefreshIDs||ctl00$UpdatePanel1,UpdatePanel1|3|asyncPostBackTimeout||400|20|formAction||./Survey_Answer.aspx|

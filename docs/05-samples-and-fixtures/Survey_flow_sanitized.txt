@@ -1,0 +1,91 @@
+جریان درخواست‌ها و پاسخ‌ها — نظرسنجی اجباری (بدون کوکی و بدون اطلاعات شخصی)
+مبنا: ضبط PCAPdroid با رمزگشایی TLS (Chrome 156 روی اندروید)، ۱۴۰۵/۰۸/۲۹ (۲۰۲۶-۱۱-۱۹ UTC). زمان‌ها نسبت به شروع ضبط‌اند.
+هدرهای Sec-Fetch-*، sec-ch-ua*، save-data، priority، accept-encoding حذف شده‌اند؛ کوکی‌ها حذف شده‌اند (شش کوکی نشست فرستاده می‌شد).
+مقادیر نمونه ساختگی‌اند؛ ViewState با «VIEWSTATE_PLACEHOLDER» جایگزین شده.
+
+────────────────────────────────────────────────────────────────
+t=14.2  (۱) ورود (خارج از دامنه‌ی این گزارش)
+POST /Login.aspx
+→ 302  Location: /Master/Default.aspx
+
+t=14.6  (۲) داشبورد
+GET /Master/Default.aspx
+→ 200 text/html; charset=utf-8   (هیچ ریدایرکتی؛ نظرسنجی هنوز نمایش داده نمی‌شود)
+
+t=18.2  (۳) کاربر روی «رزرو و خرید هفتگی غذا» می‌زند
+GET /Reservation/Reservation.aspx
+Referer: https://jeton.bums.ac.ir/Master/Default.aspx
+→ 302  Location: /Survey/Survey_Answer.aspx
+   Content-Type: text/html; charset=utf-8   Content-Length: 23836
+   نکته: بدنه‌ی ۳۰۲ فقط «Object moved to <a href="/Survey/Survey_Answer.aspx">here</a>» نیست؛ بعد از آن
+   پوسته‌ی HTML صفحه‌ی رزرو (بدون ردیف‌های منو، با VIEWSTATEGENERATOR=3ED98A75) هم چسبیده است.
+   کلاینت باید اول کد وضعیت و Location را بررسی کند، نه بدنه را.
+
+t=18.5  (۴) صفحه‌ی نظرسنجی
+GET /Survey/Survey_Answer.aspx
+Referer: https://jeton.bums.ac.ir/Master/Default.aspx
+→ 200 text/html; charset=utf-8   Content-Length: 19093   cache-control: private,no-store
+   (نمونه‌ی پاک‌سازی‌شده: Survey_page_sanitized.html)
+   همراه با آن عکس پروفایل و فایل‌های ایستا گرفته می‌شود (ربطی به منطق ندارد).
+
+t=30.9  (۵) انتخاب نظرسنجی («مشاهده») — درخواست Ajax (UpdatePanel)
+POST /Survey/Survey_Answer.aspx
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+X-MicrosoftAjax: Delta=true
+X-Requested-With: XMLHttpRequest
+Cache-Control: no-cache
+Accept: */*
+Origin: https://jeton.bums.ac.ir
+Referer: https://jeton.bums.ac.ir/Survey/Survey_Answer.aspx
+Content-Length: 1984
+بدنه (decoded):
+  ctl00$ScriptManager=ctl00$UpdatePanel1|ctl00$cphMain$grdContent$ctl02$imgbtnView
+  __EVENTTARGET=
+  __EVENTARGUMENT=
+  __VIEWSTATE=VIEWSTATE_PLACEHOLDER           (۱۵۱۶ کاراکتر؛ از HTML مرحله‌ی ۴)
+  __VIEWSTATEGENERATOR=4D6A1972
+  __VIEWSTATEENCRYPTED=
+  ctl00$cphMain$hdnSelectedAccordion=1
+  ctl00$cphMain$hdnId=
+  __ASYNCPOST=true
+  ctl00$cphMain$grdContent$ctl02$imgbtnView.x=1
+  ctl00$cphMain$grdContent$ctl02$imgbtnView.y=7
+→ 200 Content-Type: text/plain; charset=utf-8 (قالب Delta)   Content-Length: 92341
+   (نمونه‌ی پاک‌سازی‌شده: Survey_select_delta_sanitized.txt)
+   بخش‌ها: updatePanel(UpdatePanel1) + hiddenField __VIEWSTATE (۲۲۰۶۰ کاراکتر) + __VIEWSTATEGENERATOR + __VIEWSTATEENCRYPTED
+           + asyncPostBackControlIDs, postBackControlIDs, updatePanelIDs, childUpdatePanelIDs, panelsToRefreshIDs,
+             asyncPostBackTimeout, formAction (=./Survey_Answer.aspx)
+   توجه: ViewState جدید (۲۲۰۶۰ کاراکتر) باید در مرحله‌ی بعد فرستاده شود.
+
+t≈100   (۶) ذخیره — تلاش اول (ناموفق: دو گزینه برای یک پرسش)
+POST /Survey/Survey_Answer.aspx   (همان هدرهای مرحله‌ی ۵)   Content-Length: 28651
+→ 200 text/plain   scriptStartupBlock:
+     SetValue(0);
+     toastify('error', 'تعداد پاسخ انتخاب شده بیش از تعداد مجاز می باشد تعدا مجاز: 1 مورد ', 'عملیات ناموفق!', 'toast-bottom-right', 'true');
+
+t≈110   (۷) کاربر دوباره «مشاهده» می‌زند (مثل مرحله‌ی ۵، با پاسخ‌های قبلی هنوز در فرم) → 200 (پنل بازسازی‌شده)
+
+t≈180–200 تلاش‌های بعدی:
+  • دو گزینه برای دو پرسش → همان خطای «بیش از تعداد مجاز»
+  • فقط یک پرسش پاسخ داده شده → 200 با:
+     toastify('error', 'حداقل تعداد سوال پاسخ داده شده، برای نظر سنجی "کیفیت غذای سلف در مهر و آبان 1405" باید 27 عدد باشد. ', 'عملیات ناموفق!', 'toast-bottom-right', 'true');
+
+t≈268   (۸) ذخیره‌ی موفق (۲۴ پاسخ گزینه‌ای + ۳ پاسخ متنی)
+POST /Survey/Survey_Answer.aspx   Content-Length: 28485   (۹۱ فیلد)
+→ 200 text/plain   Content-Length: 91976
+     SetValue(0);
+     toastify('success', 'نظر شما با موفقیت ثبت شد.', 'عملیات موفق!', 'toast-bottom-right', 'true');
+   در پنل بازگشتی، جدول نظرسنجی‌ها دیگر ردیفی ندارد: «داده ای برای نمایش وجود ندارد».
+
+t=272.1 (۹) بازگشت به رزرو
+GET /Reservation/Reservation.aspx
+Referer: https://jeton.bums.ac.ir/Survey/Survey_Answer.aspx
+→ 200 text/html; charset=utf-8   (دیگر ریدایرکت نمی‌شود؛ VIEWSTATEGENERATOR=3ED98A75)
+
+t=276.7 (۱۰) خروج (برای تکمیل)
+POST /Reservation/Reservation.aspx   (ctl00$logout)  → 302 /Login.aspx
+
+────────────────────────────────────────────────────────────────
+پاسخ‌های HTML (صفحه‌ها): cache-control: private,no-store ؛ content-type: text/html; charset=utf-8
+پاسخ‌های Delta: content-type: text/plain; charset=utf-8 ؛ cache-control: private,no-store
+(پاسخ‌ها فشرده نشدند: بدون Content-Encoding)

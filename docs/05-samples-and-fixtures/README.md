@@ -24,12 +24,20 @@
 ### ۴. `MyProfile_page_sanitized.html` (HTML صفحه‌ی «پروفایل من» بدون اطلاعات شخصی)
 - **عملیات شبیه‌سازی‌شده:** `GET /MyCullinan/MyProfile.aspx` پس از ورود موفق به سامانه.
 - **محتوا و ساختار:** HTML واقعی پاسخ سرور با همان ساختار DOM، جدول‌های دو ستونی `fieldset` و شناسه‌های ثابت (`cphMain_lblName`، `cphMain_lblIdNumber`، `cphMain_lblNationalCode`، نوار کناری `#divUsername`، `#lblIdNumber`، `#lblCredit` با نمونه `123,000- ريال ` و مقدار خالی `...`)؛ تمامی مقادیر شخصی با داده‌های ساختگی استاندارد و توکن `__VIEWSTATE` با `VIEWSTATE_PLACEHOLDER` جایگزین شده‌اند.
-- **کاربرد در تست:** تست واحد `ProfileParser` و `PageClassifier.TYPE_PROFILE` (استخراج ۲۱ فیلد پروفایل و ۵ فیلد نوار کناری، نگاشت `...` ← `null`، علامت `-` پسوندی اعتبار و نرمال‌سازی کاراکتر عربی `ي`). برای جزئیات کامل سند [مهندسی معکوس پروفایل من](../02-reverse-engineering/my-profile-and-user-image.md) را ببینید.
+- **کاربرد در تست:** تست واحد `ProfileParser` و `PageClassifier.TYPE_PROFILE` در `ProfileFeatureUnitTest.kt` (استخراج ۲۱ فیلد پروفایل و ۵ فیلد نوار کناری، نگاشت `...` ← `null`، علامت `-` پسوندی اعتبار و نرمال‌سازی کاراکتر عربی `ي`). برای جزئیات کامل سند [مهندسی معکوس پروفایل من](../02-reverse-engineering/my-profile-and-user-image.md) را ببینید.
 
 ### ۵. `MyProfile_flow_sanitized.txt` (جریان کامل درخواست‌ها و پاسخ‌های پروفایل من و خروج)
 - **عملیات شبیه‌سازی‌شده:** ضبط TLS-decrypted مرورگر Chrome (PCAPdroid) از توالی ورود، دریافت `Default.aspx`، `UserImage.ashx`، `GET /MyCullinan/MyProfile.aspx` و `POST /MyCullinan/MyProfile.aspx` برای خروج (`ctl00$logout`).
 - **محتوای پاک‌سازی‌شده:** هدرها، کدهای وضعیت، اندازه‌های پاسخ (`25802` بایت HTML و `5660` بایت `image/jpg`) و فیلدهای بدنه‌ی ۵تایی خروج، بدون هرگونه کوکی، کلید TLS یا ViewState واقعی.
 - **کاربرد در تست:** پیاده‌سازی سناریوهای `MockWebServer` برای `ProfileRepository`، `UserImage.ashx` و خروج با بدنه‌ی کوچک.
+
+### ۶. فیکسچرهای نظرسنجی اجباری (`Survey_Answer.aspx`)
+- **`Survey_page_sanitized.html`:** پاسخ واقعی `GET /Survey/Survey_Answer.aspx` شامل جدول `#cphMain_grdContent` با یک نظرسنجی فعال، دکمه `imgbtnView`، منوی مشترک Master و اسکریپت `toastify('warning', ...)`؛ جایگزین‌شده با مقادیر ساختگی و `VIEWSTATE_PLACEHOLDER`.
+- **`Survey_select_delta_sanitized.txt`:** پاسخ Delta (`UpdatePanel1`) پس از انتخاب نظرسنجی («مشاهده»)، حاوی HTML کامل جدول `#cphMain_grdQuestion` (۲۷ پرسش: ۲۴ گزینه‌ای نوع `1` و ۳ متنی نوع `3`)، دکمه ذخیره و توکن `__VIEWSTATE` ۲۲,۰۶۰ کاراکتری پاک‌سازی‌شده. فیکسچر اصلی پارسر فرم نظرسنجی.
+- **`Survey_questions_structure.json`:** ساختار استخراج‌شده و معتبر هر ۲۷ پرسش (شماره، پیشوند `ctl02..ctl28`، نوع، `HiddenMaxAnswer`، متن تمیز پرسش و لیست گزینه‌ها با `pos`، `value` و `label`).
+- **`Survey_save_request_sample.txt`:** قالب کامل بدنه‌ی ۹۱ فیلدی درخواست `POST` ذخیره‌ی نظرسنجی با مقادیر نمونه و یادداشت راهنما.
+- **`Survey_flow_sanitized.txt`:** جدول زمانی کامل ضبط PCAPdroid از ورود، ریدایرکت `302` رزرو به نظرسنجی (همراه با پوسته ۲۳,۸۳۶ بایتی)، تلاش‌های ناموفق و موفق `toastify`، باز شدن رزرو و خروج.
+- **سند مرتبط:** [مهندسی معکوس نظرسنجی اجباری و دروازه رزرو](../02-reverse-engineering/mandatory-survey-and-gate.md).
 
 ---
 
@@ -48,4 +56,3 @@ val candidates = listOf(
 > 🔒 **حریم خصوصی فیکسچرها:** تمامی فایل‌های موجود در این پوشه پیش از ثبت در مخزن به‌طور کامل پاک‌سازی (Sanitize) شده‌اند و **فاقد هرگونه نام واقعی، کد ملی، شماره دانشجویی، تلفن، ایمیل، تصویر چهره یا کوکی نشست** هستند. هنگام افزودن هر فیکسچر جدید، از پاک‌سازی کامل مقادیر شخصی و `VIEWSTATE` اطمینان حاصل کنید.
 
 این ساختار باعث می‌شود آزمون‌ها با نهایت سرعت روی JVM محلی و در سرورهای GitHub Actions بدون وابستگی به شبکه بیرونی اجرا شوند.
-
