@@ -7,6 +7,7 @@ import com.example.data.captcha.solver.CaptchaResult
 import com.example.data.captcha.solver.CaptchaSolver
 import com.example.data.captcha.solver.MlKitCaptchaSolver
 import com.example.data.captcha.solver.OcrDiagnosticReport
+import com.example.data.captcha.solver.OcrModuleController
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
 import com.example.data.logger.LogEntry
@@ -30,7 +31,10 @@ class AuthViewModel(
     private val authRepository: AuthRepository,
     private val userPrefs: UserPreferences,
     private val biometricCapabilityChecker: BiometricCapabilityChecker,
-    private val captchaSolverFactory: () -> CaptchaSolver = { MlKitCaptchaSolver() }
+    private val captchaSolverFactory: () -> CaptchaSolver = { MlKitCaptchaSolver() },
+    private val ocrModuleAvailabilityChecker: suspend () -> Boolean = {
+        OcrModuleController.isModuleReadyForSolve(application)
+    }
 ) : AndroidViewModel(application) {
 
     constructor(application: Application) : this(
@@ -628,6 +632,32 @@ class AuthViewModel(
         captchaSolveJob = viewModelScope.launch {
             _isSolvingCaptcha.value = true
             try {
+                val moduleReady = try {
+                    ocrModuleAvailabilityChecker()
+                } catch (ce: CancellationException) {
+                    throw ce
+                } catch (_: Throwable) {
+                    false
+                }
+                if (!isActive || version != captchaImageVersion) {
+                    return@launch
+                }
+                if (!moduleReady) {
+                    // Never trigger an implicit background OCR download on the login screen;
+                    // disable auto-captcha and keep manual captcha entry ready.
+                    if (userPrefs.isAutoCaptchaEnabled) {
+                        userPrefs.isAutoCaptchaEnabled = false
+                    }
+                    _isAutoCaptchaEnabled.value = false
+                    _isCaptchaAutoFilled.value = false
+                    _captchaSoftMessage.value = null
+                    AppLogger.logInfo(
+                        "CaptchaOCR",
+                        "AutoSolveSkippedModuleUnavailable",
+                        "Auto captcha disabled because Play Services OCR module is not installed or GMS is unavailable"
+                    )
+                    return@launch
+                }
                 val outcome = getOrCreateCaptchaSolver().solveWithDiagnostics(imageBytes)
                 if (!isActive || version != captchaImageVersion) {
                     return@launch

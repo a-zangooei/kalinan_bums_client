@@ -88,7 +88,10 @@ import com.example.data.captcha.lab.CaptchaLabSort
 import com.example.data.captcha.lab.CaptchaLabSummaryStats
 import com.example.data.captcha.lab.CaptchaLabZipExporter
 import com.example.data.captcha.lab.CaptchaStageBenchmarkEngine
+import com.example.data.captcha.solver.OcrModuleController
+import com.example.data.captcha.solver.OcrModuleState
 import com.example.ui.components.PersianRtlLayout
+import com.example.ui.screens.settings.OcrModuleStatusPanel
 import com.example.ui.theme.TealPrimary
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -113,9 +116,11 @@ fun CaptchaLabScreen(
     val activeSingleIds by CaptchaLabController.activeSingleBenchmarkIds.collectAsStateWithLifecycle()
     val simulationProgress by CaptchaLabController.simulationProgress.collectAsStateWithLifecycle()
     val simulationReport by CaptchaLabController.simulationReport.collectAsStateWithLifecycle()
+    val ocrModuleState by OcrModuleController.state.collectAsStateWithLifecycle()
 
-    LaunchedEffect(repository) {
+    LaunchedEffect(repository, context) {
         repository.ensureLoaded()
+        OcrModuleController.refreshStatus(context)
     }
 
     var activeFilter by remember { mutableStateOf(CaptchaLabFilter.ALL) }
@@ -174,6 +179,7 @@ fun CaptchaLabScreen(
                         repository = repository,
                         record = selectedRecord,
                         isBenchmarkRunning = isSingleRunning || batchProgress.isRunning || simulationProgress.isRunning,
+                        isOcrModuleReady = ocrModuleState.isReady,
                         onRunStageBenchmark = { attemptNum ->
                             CaptchaLabController.runSingleBenchmarkAsync(
                                 context = context,
@@ -357,6 +363,15 @@ fun CaptchaLabScreen(
                                 }
 
                                 item {
+                                    OcrModuleLabStatusCard(
+                                        ocrModuleState = ocrModuleState,
+                                        onDownloadOcrModule = {
+                                            OcrModuleController.startManualDownload(context)
+                                        }
+                                    )
+                                }
+
+                                item {
                                     KpiSummaryRow(stats = stats)
                                 }
 
@@ -392,9 +407,12 @@ fun CaptchaLabScreen(
                                         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                                             OutlinedButton(
                                                 onClick = triggerSimulateClick,
-                                                enabled = !batchProgress.isRunning && !simulationProgress.isRunning,
+                                                enabled = ocrModuleState.isReady && !batchProgress.isRunning && !simulationProgress.isRunning,
                                                 shape = RoundedCornerShape(10.dp),
-                                                border = BorderStroke(1.dp, TealPrimary),
+                                                border = BorderStroke(
+                                                    1.dp,
+                                                    if (ocrModuleState.isReady) TealPrimary else MaterialTheme.colorScheme.outline.copy(alpha = 0.4f)
+                                                ),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .heightIn(min = 48.dp)
@@ -403,7 +421,7 @@ fun CaptchaLabScreen(
                                                 Icon(
                                                     Icons.AutoMirrored.Filled.CompareArrows,
                                                     contentDescription = null,
-                                                    tint = TealPrimary,
+                                                    tint = if (ocrModuleState.isReady) TealPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                                                     modifier = Modifier.size(18.dp)
                                                 )
                                                 Spacer(modifier = Modifier.width(6.dp))
@@ -415,13 +433,13 @@ fun CaptchaLabScreen(
                                                     },
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = TealPrimary
+                                                    color = if (ocrModuleState.isReady) TealPrimary else MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
                                             }
 
                                             OutlinedButton(
                                                 onClick = triggerBatchClick,
-                                                enabled = !batchProgress.isRunning && !simulationProgress.isRunning,
+                                                enabled = ocrModuleState.isReady && !batchProgress.isRunning && !simulationProgress.isRunning,
                                                 shape = RoundedCornerShape(10.dp),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
@@ -502,6 +520,7 @@ fun CaptchaLabScreen(
                                             record = record,
                                             isBenchmarkRunning = isSingleRunning,
                                             batchRunning = batchProgress.isRunning || simulationProgress.isRunning,
+                                            isOcrModuleReady = ocrModuleState.isReady,
                                             onRunSingleOcr = {
                                                 CaptchaLabController.runSingleBenchmarkAsync(context, record.captchaId) { result ->
                                                     if (result != null) {
@@ -688,6 +707,48 @@ private fun ArchiveToggleBanner(
 }
 
 @Composable
+private fun OcrModuleLabStatusCard(
+    ocrModuleState: OcrModuleState,
+    onDownloadOcrModule: () -> Unit
+) {
+    Card(
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (ocrModuleState.isReady) {
+                Color(0xFF2E7D32).copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+            }
+        ),
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("captcha_lab_ocr_module_card")
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = "موتور OCR گوگل‌پلی (نسخه Unbundled)",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold
+            )
+            OcrModuleStatusPanel(
+                ocrModuleState = ocrModuleState,
+                onDownloadOcrModule = onDownloadOcrModule,
+                statusBadgeTag = "captcha_lab_ocr_module_status",
+                downloadButtonTag = "captcha_lab_download_ocr_button",
+                progressTag = "captcha_lab_ocr_download_progress"
+            )
+        }
+    }
+}
+
+@Composable
 private fun KpiSummaryRow(stats: CaptchaLabSummaryStats) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -763,6 +824,7 @@ private fun CaptchaRecordListCard(
     record: CaptchaLabRecord,
     isBenchmarkRunning: Boolean,
     batchRunning: Boolean,
+    isOcrModuleReady: Boolean,
     onRunSingleOcr: () -> Unit,
     onClick: () -> Unit,
     onDelete: () -> Unit
@@ -942,7 +1004,7 @@ private fun CaptchaRecordListCard(
 
             IconButton(
                 onClick = onRunSingleOcr,
-                enabled = !isBenchmarkRunning && !batchRunning,
+                enabled = isOcrModuleReady && !isBenchmarkRunning && !batchRunning,
                 modifier = Modifier
                     .minimumInteractiveComponentSize()
                     .testTag("captcha_lab_run_ocr_${record.captchaId}")
@@ -957,7 +1019,7 @@ private fun CaptchaRecordListCard(
                     Icon(
                         Icons.Default.PlayArrow,
                         contentDescription = "اجرای OCR تمام مراحل",
-                        tint = TealPrimary
+                        tint = if (isOcrModuleReady) TealPrimary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.45f)
                     )
                 }
             }

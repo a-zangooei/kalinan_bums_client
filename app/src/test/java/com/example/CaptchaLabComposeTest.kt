@@ -2,6 +2,8 @@ package com.example
 
 import android.app.Application
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.hasTestTag
@@ -29,7 +31,12 @@ import com.example.data.captcha.lab.GifFormatInspector
 import com.example.data.captcha.lab.SolverSimulationMetricsSnapshot
 import com.example.data.captcha.preprocess.GrayscaleImage
 import com.example.data.captcha.preprocess.PreprocessConfig
+import com.example.data.captcha.solver.OcrDownloadProgress
 import com.example.data.captcha.solver.OcrElement
+import com.example.data.captcha.solver.OcrModuleClient
+import com.example.data.captcha.solver.OcrModuleController
+import com.example.data.captcha.solver.OcrModuleDownloadOutcome
+import com.example.data.captcha.solver.PlayServicesAvailability
 import com.example.ui.components.PersianRtlLayout
 import com.example.ui.screens.captchalab.CaptchaLabScreen
 import com.example.ui.screens.settings.DeveloperToolsSection
@@ -57,6 +64,18 @@ class CaptchaLabComposeTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
+        OcrModuleController.setClientFactoryForTest {
+            object : OcrModuleClient {
+                override fun checkPlayServicesAvailability(): PlayServicesAvailability =
+                    PlayServicesAvailability.Available
+
+                override suspend fun areModulesAvailable(): Boolean = true
+
+                override suspend fun installModule(
+                    onProgress: (OcrDownloadProgress) -> Unit
+                ): OcrModuleDownloadOutcome = OcrModuleDownloadOutcome.Completed
+            }
+        }
         CaptchaLabController.init(context)
         CaptchaLabController.setArchivingEnabled(false)
         CaptchaLabController.cancelSolverSimulation()
@@ -71,6 +90,7 @@ class CaptchaLabComposeTest {
         CaptchaLabController.setArchivingEnabled(false)
         CaptchaLabController.cancelSolverSimulation()
         CaptchaLabController.clearSolverSimulationReport()
+        OcrModuleController.resetForTest()
     }
 
     @Test
@@ -475,5 +495,81 @@ class CaptchaLabComposeTest {
             .performScrollToNode(hasTestTag("captcha_lab_simulation_report_card"))
         composeRule.onNodeWithTag("captcha_lab_simulation_dismiss_button").performScrollTo().performClick()
         composeRule.onNodeWithTag("captcha_lab_simulation_report_card").assertDoesNotExist()
+    }
+
+    @Test
+    fun ocrModuleNotInstalled_disablesOcrButtonsAndAllowsManualDownloadInLab() {
+        val repo = CaptchaLabController.getRepository(context)
+        val dummyGif = byteArrayOf(0x47, 0x49, 0x46, 0x38, 0x39, 0x61, 24, 0, 12, 0, 0, 0, 0, 0x3B)
+        runBlocking {
+            repo.saveSessionNow(
+                CapturedCaptchaSession(
+                    captchaId = "lab_mod_cap_1",
+                    capturedAtEpochMs = 1_700_000_700_000L,
+                    rawBytes = dummyGif,
+                    rawInspection = GifFormatInspector.inspect(dummyGif),
+                    decodedFrameIndex = 0,
+                    decodeStatus = "SUCCESS",
+                    rawWidth = 24,
+                    rawHeight = 12,
+                    outcomeCategory = CaptchaLabOutcomeCategory.NO_TEXT_DETECTED,
+                    finalStatus = "NO_TEXT_DETECTED",
+                    finalDigits = null,
+                    failureReason = null,
+                    lastRejectionCode = "NO_TEXT_DETECTED",
+                    exceptionType = null,
+                    mlKitErrorCode = null,
+                    totalDurationMs = 15L,
+                    attempts = emptyList()
+                )
+            )
+        }
+
+        var installed = false
+        OcrModuleController.setClientFactoryForTest {
+            object : OcrModuleClient {
+                override fun checkPlayServicesAvailability(): PlayServicesAvailability =
+                    PlayServicesAvailability.Available
+
+                override suspend fun areModulesAvailable(): Boolean = installed
+
+                override suspend fun installModule(
+                    onProgress: (OcrDownloadProgress) -> Unit
+                ): OcrModuleDownloadOutcome {
+                    onProgress(OcrDownloadProgress(progressPercent = 65, bytesDownloaded = 650, totalBytesToDownload = 1000))
+                    installed = true
+                    return OcrModuleDownloadOutcome.Completed
+                }
+            }
+        }
+
+        composeRule.setContent {
+            CullinanTheme {
+                CaptchaLabScreen(onDismiss = {})
+            }
+        }
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_ocr_module_card"))
+        composeRule.onNodeWithTag("captcha_lab_download_ocr_button").assertIsDisplayed()
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_simulate_solver_button"))
+        composeRule.onNodeWithTag("captcha_lab_simulate_solver_button").assertIsNotEnabled()
+        composeRule.onNodeWithTag("captcha_lab_batch_ocr_button").assertIsNotEnabled()
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_download_ocr_button"))
+        composeRule.onNodeWithTag("captcha_lab_download_ocr_button").performClick()
+
+        composeRule.waitUntil(timeoutMillis = 3_000L) {
+            OcrModuleController.state.value.isReady
+        }
+        composeRule.waitForIdle()
+
+        composeRule.onNodeWithTag("captcha_lab_main_list")
+            .performScrollToNode(hasTestTag("captcha_lab_simulate_solver_button"))
+        composeRule.onNodeWithTag("captcha_lab_simulate_solver_button").assertIsEnabled()
+        composeRule.onNodeWithTag("captcha_lab_batch_ocr_button").assertIsEnabled()
     }
 }

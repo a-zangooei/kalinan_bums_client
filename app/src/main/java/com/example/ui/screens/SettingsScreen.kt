@@ -27,6 +27,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -45,6 +46,8 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.BuildConfig
 import com.example.data.captcha.lab.CaptchaLabController
+import com.example.data.captcha.solver.OcrModuleController
+import com.example.data.captcha.solver.OcrModuleState
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
 import com.example.data.model.AppThemeMode
@@ -92,6 +95,19 @@ fun SettingsScreen(
     val captchaLabRepo = remember(context) { CaptchaLabController.getRepository(context) }
     val isCaptchaLabArchiving by CaptchaLabController.isArchivingEnabled.collectAsStateWithLifecycle()
     val captchaLabRecords by captchaLabRepo.records.collectAsStateWithLifecycle()
+    val ocrModuleState by OcrModuleController.state.collectAsStateWithLifecycle()
+
+    LaunchedEffect(context) {
+        OcrModuleController.refreshStatus(context)
+    }
+
+    LaunchedEffect(ocrModuleState) {
+        if (!ocrModuleState.isReady && ocrModuleState !is OcrModuleState.Checking && userPrefs.isAutoCaptchaEnabled) {
+            userPrefs.isAutoCaptchaEnabled = false
+            isAutoCaptchaEnabled = false
+            onSecuritySettingsChanged?.invoke()
+        }
+    }
 
     DisposableEffect(lifecycleOwner, context, userPrefs) {
         val observer = LifecycleEventObserver { _, event ->
@@ -100,6 +116,7 @@ fun SettingsScreen(
                 isBiometricEnabled = userPrefs.isBiometricLockEnabled
                 isAutoCaptchaEnabled = userPrefs.isAutoCaptchaEnabled
                 canUseBiometric = BiometricHelper.canAuthenticate(context)
+                OcrModuleController.refreshStatus(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -206,9 +223,18 @@ fun SettingsScreen(
         modifier = modifier,
         isAutoCaptchaEnabled = isAutoCaptchaEnabled,
         onToggleAutoCaptcha = { enable ->
-            userPrefs.isAutoCaptchaEnabled = enable
-            isAutoCaptchaEnabled = enable
+            if (enable && !ocrModuleState.isReady) {
+                userPrefs.isAutoCaptchaEnabled = false
+                isAutoCaptchaEnabled = false
+            } else {
+                userPrefs.isAutoCaptchaEnabled = enable
+                isAutoCaptchaEnabled = enable
+            }
             onSecuritySettingsChanged?.invoke()
+        },
+        ocrModuleState = ocrModuleState,
+        onDownloadOcrModule = {
+            OcrModuleController.startManualDownload(context)
         },
         onOpenCaptchaLab = { showCaptchaLab = true },
         isCaptchaLabArchivingActive = isCaptchaLabArchiving,
@@ -267,6 +293,8 @@ internal fun SettingsScreenContent(
     modifier: Modifier = Modifier,
     isAutoCaptchaEnabled: Boolean = false,
     onToggleAutoCaptcha: (Boolean) -> Unit = {},
+    ocrModuleState: OcrModuleState = OcrModuleState.Ready,
+    onDownloadOcrModule: () -> Unit = {},
     onOpenCaptchaLab: () -> Unit = {},
     isCaptchaLabArchivingActive: Boolean = false,
     captchaLabArchivedCount: Int = 0
@@ -330,7 +358,9 @@ internal fun SettingsScreenContent(
 
                 AutoCaptchaSettingsSection(
                     isAutoCaptchaEnabled = isAutoCaptchaEnabled,
-                    onToggleAutoCaptcha = onToggleAutoCaptcha
+                    onToggleAutoCaptcha = onToggleAutoCaptcha,
+                    ocrModuleState = ocrModuleState,
+                    onDownloadOcrModule = onDownloadOcrModule
                 )
 
                 Spacer(modifier = Modifier.height(20.dp))

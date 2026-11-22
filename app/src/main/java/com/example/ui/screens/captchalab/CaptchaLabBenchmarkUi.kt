@@ -406,6 +406,7 @@ internal fun StageBenchmarkSectionCard(
     record: CaptchaLabRecord,
     selectedAttemptNumber: Int,
     isBenchmarkRunning: Boolean,
+    isOcrModuleReady: Boolean = true,
     onRunStageOcr: () -> Unit,
     onSaveExpectedDigits: (String) -> Unit,
     onClearExpectedDigits: () -> Unit
@@ -446,7 +447,7 @@ internal fun StageBenchmarkSectionCard(
 
             Button(
                 onClick = onRunStageOcr,
-                enabled = !isBenchmarkRunning,
+                enabled = isOcrModuleReady && !isBenchmarkRunning,
                 colors = ButtonDefaults.buttonColors(containerColor = TealPrimary),
                 shape = RoundedCornerShape(10.dp),
                 modifier = Modifier
@@ -465,7 +466,15 @@ internal fun StageBenchmarkSectionCard(
                 } else {
                     Icon(Icons.Default.PlayArrow, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("اجرای دستی OCR روی خام + ۸ مرحله", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text(
+                        text = if (isOcrModuleReady) {
+                            "اجرای دستی OCR روی خام + ۸ مرحله"
+                        } else {
+                            "ابتدا موتور OCR را از گوگل‌پلی دانلود کنید"
+                        },
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
 

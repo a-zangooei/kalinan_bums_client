@@ -5,6 +5,8 @@ import android.content.Context
 import android.util.Base64
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.assertIsEnabled
+import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.junit4.createComposeRule
@@ -19,6 +21,7 @@ import com.example.data.captcha.solver.CaptchaSolver
 import com.example.data.captcha.solver.CaptchaSolverConfig
 import com.example.data.captcha.solver.MlKitCaptchaSolver
 import com.example.data.captcha.solver.OcrElement
+import com.example.data.captcha.solver.OcrModuleState
 import com.example.data.captcha.solver.OcrOutput
 import com.example.data.captcha.solver.OcrSession
 import com.example.data.local.UserPreferences
@@ -196,7 +199,8 @@ class AuthViewModelAutoCaptchaUnitTest {
                         return CaptchaResult.Success("4829")
                     }
                 }
-            }
+            },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         awaitCondition { vm.captchaInput.value == "4829" }
@@ -239,7 +243,8 @@ class AuthViewModelAutoCaptchaUnitTest {
                         return gate.await()
                     }
                 }
-            }
+            },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         started.await()
@@ -281,7 +286,8 @@ class AuthViewModelAutoCaptchaUnitTest {
                         return results.removeFirst()
                     }
                 }
-            }
+            },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         awaitCondition { vm.captchaSoftMessage.value == AuthViewModel.CAPTCHA_SOLVE_FAILED_MESSAGE }
@@ -334,7 +340,8 @@ class AuthViewModelAutoCaptchaUnitTest {
                         }
                     }
                 }
-            }
+            },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         firstStarted.await()
@@ -391,7 +398,8 @@ class AuthViewModelAutoCaptchaUnitTest {
                         }
                     }
                 }
-            }
+            },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         awaitCondition { vm.captchaInput.value == "4321" }
@@ -431,7 +439,8 @@ class AuthViewModelAutoCaptchaUnitTest {
                     override suspend fun solve(imageBytes: ByteArray): CaptchaResult =
                         CaptchaResult.Success("7391")
                 }
-            }
+            },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         awaitCondition { vm.captchaInput.value == "7391" }
@@ -473,7 +482,8 @@ class AuthViewModelAutoCaptchaUnitTest {
             authRepository = AuthRepository(),
             userPrefs = prefs,
             biometricCapabilityChecker = BiometricCapabilityChecker { true },
-            captchaSolverFactory = { solver }
+            captchaSolverFactory = { solver },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         awaitCondition { vm.captchaSoftMessage.value == AuthViewModel.CAPTCHA_SOLVE_FAILED_MESSAGE && !vm.isSolvingCaptcha.value }
@@ -528,7 +538,8 @@ class AuthViewModelAutoCaptchaUnitTest {
             authRepository = AuthRepository(),
             userPrefs = prefs,
             biometricCapabilityChecker = BiometricCapabilityChecker { true },
-            captchaSolverFactory = { solver }
+            captchaSolverFactory = { solver },
+            ocrModuleAvailabilityChecker = { true }
         )
 
         awaitCondition { vm.captchaSoftMessage.value == AuthViewModel.CAPTCHA_SOLVE_FAILED_MESSAGE && !vm.isSolvingCaptcha.value }
@@ -634,5 +645,126 @@ class AuthViewModelAutoCaptchaUnitTest {
             "کد امنیتی به‌صورت خودکار پر شد، قابل ویرایش",
             semantics[SemanticsProperties.StateDescription]
         )
+    }
+
+    @Test
+    fun whenAutoCaptchaEnabledButModuleUnavailable_disablesPreferenceAndNeverInvokesSolver() {
+        val prefs = createPrefs(autoCaptchaEnabled = true)
+        val imgBytes = byteArrayOf(1, 2, 3, 4)
+        server.enqueue(MockResponse().setResponseCode(200).setBody(loginPageHtml()))
+        server.enqueue(binaryCaptchaResponse(imgBytes))
+
+        val factoryCalls = AtomicInteger(0)
+        val vm = AuthViewModel(
+            application = context,
+            authRepository = AuthRepository(),
+            userPrefs = prefs,
+            biometricCapabilityChecker = BiometricCapabilityChecker { true },
+            captchaSolverFactory = {
+                factoryCalls.incrementAndGet()
+                object : CaptchaSolver {
+                    override suspend fun solve(imageBytes: ByteArray): CaptchaResult =
+                        CaptchaResult.Success("1234")
+                }
+            },
+            ocrModuleAvailabilityChecker = { false }
+        )
+
+        awaitCondition { vm.pageState.value.captchaBytes != null && !vm.isSolvingCaptcha.value && !vm.isAutoCaptchaEnabled.value }
+        assertEquals(0, factoryCalls.get())
+        assertFalse(prefs.isAutoCaptchaEnabled)
+        assertFalse(vm.isAutoCaptchaEnabled.value)
+        assertEquals("", vm.captchaInput.value)
+        assertNull(vm.captchaSoftMessage.value)
+        assertTrue(
+            AppLogger.recentEntries.value.any {
+                it.component == "CaptchaOCR" && it.operation == "AutoSolveSkippedModuleUnavailable"
+            }
+        )
+    }
+
+    @Test
+    fun settingsOcrStates_gateSwitchAndExposeManualDownloadButton() {
+        var downloadClicks = 0
+        composeRule.setContent {
+            CullinanTheme(darkTheme = false) {
+                SettingsScreenContent(
+                    currentThemeMode = AppThemeMode.LIGHT,
+                    isEncryptionAvailable = true,
+                    canUseBiometric = true,
+                    isBiometricEnabled = false,
+                    baseUrl = "https://jeton.bums.ac.ir",
+                    isCompatibilityModeActive = false,
+                    isDevUnlocked = false,
+                    versionName = "1.0.0",
+                    versionCode = 66,
+                    onNavigateBack = {},
+                    onSelectTheme = {},
+                    onToggleBiometric = {},
+                    onOpenDeviceSecuritySettings = {},
+                    onRecoveryWipeAndDisableLock = {},
+                    onToggleCompatibilityMode = {},
+                    onOpenLogs = {},
+                    onExportZip = {},
+                    onClearLogs = {},
+                    onExitDeveloperMode = {},
+                    onVersionClick = {},
+                    onCheckForUpdates = {},
+                    isAutoCaptchaEnabled = false,
+                    onToggleAutoCaptcha = {},
+                    ocrModuleState = OcrModuleState.NotInstalled,
+                    onDownloadOcrModule = { downloadClicks++ }
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("auto_captcha_switch").performScrollTo().assertIsNotEnabled()
+        composeRule.onNodeWithTag("settings_download_ocr_button")
+            .performScrollTo()
+            .assertIsDisplayed()
+            .assertIsEnabled()
+            .performClick()
+        assertEquals(1, downloadClicks)
+    }
+
+    @Test
+    fun settingsPlayServicesUnavailable_keepsSwitchDisabledAndHidesDownloadButton() {
+        composeRule.setContent {
+            CullinanTheme(darkTheme = false) {
+                SettingsScreenContent(
+                    currentThemeMode = AppThemeMode.LIGHT,
+                    isEncryptionAvailable = true,
+                    canUseBiometric = true,
+                    isBiometricEnabled = false,
+                    baseUrl = "https://jeton.bums.ac.ir",
+                    isCompatibilityModeActive = false,
+                    isDevUnlocked = false,
+                    versionName = "1.0.0",
+                    versionCode = 66,
+                    onNavigateBack = {},
+                    onSelectTheme = {},
+                    onToggleBiometric = {},
+                    onOpenDeviceSecuritySettings = {},
+                    onRecoveryWipeAndDisableLock = {},
+                    onToggleCompatibilityMode = {},
+                    onOpenLogs = {},
+                    onExportZip = {},
+                    onClearLogs = {},
+                    onExitDeveloperMode = {},
+                    onVersionClick = {},
+                    onCheckForUpdates = {},
+                    isAutoCaptchaEnabled = true,
+                    onToggleAutoCaptcha = {},
+                    ocrModuleState = OcrModuleState.PlayServicesUnavailable(
+                        connectionResultCode = 9,
+                        isUserResolvable = false
+                    )
+                )
+            }
+        }
+
+        composeRule.onNodeWithTag("auto_captcha_switch").performScrollTo().assertIsNotEnabled().assertIsOff()
+        composeRule.onNodeWithTag("settings_ocr_module_status").performScrollTo().assertIsDisplayed()
+        composeRule.onNodeWithTag("settings_download_ocr_button").assertDoesNotExist()
     }
 }

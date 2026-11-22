@@ -28,15 +28,7 @@
 -keep class com.google.mlkit.vision.common.internal.VisionCommonRegistrar { *; }
 -keep class com.google.mlkit.vision.text.internal.TextRegistrar { *; }
 
-# Preserve Dynamite local module descriptors read reflectively by DynamiteModule.getLocalVersion
--keep class com.google.android.gms.dynamite.descriptors.com.google.mlkit.dynamite.text.** {
-    public static *;
-    public <init>();
-}
-
-# Preserve Bundled Latin OCR creator and VisionKit pipeline JNI / reflection targets
--keep class com.google.mlkit.vision.text.bundled.** { *; }
--keep class com.google.android.libraries.vision.visionkit.pipeline.alt.NativePipelineImpl { *; }
--keep class com.google.android.libraries.vision.visionkit.pipeline.alt.PipelineException { *; }
--keep class com.google.android.libraries.vision.visionkit.pipeline.AndroidAssetUtil { *; }
+# Preserve Play Services ML Kit Text Recognition / ModuleInstall reflective targets
+-keep class com.google.mlkit.vision.text.latin.** { *; }
+-keep class com.google.android.gms.common.moduleinstall.** { *; }
 

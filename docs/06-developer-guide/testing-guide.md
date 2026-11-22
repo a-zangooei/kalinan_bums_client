@@ -23,7 +23,7 @@
 
 ---
 
-## ۲. کلاس‌های آزمون موجود (۲۷ سوئیت تست) و حیطه وظایف هر کدام
+## ۲. کلاس‌های آزمون موجود (۲۸ سوئیت تست) و حیطه وظایف هر کدام
 
 ### الف) رزرواسیون، نظرسنجی اجباری و ناوبری هفته
 1. **`SurveyAndPaginationUnitTest.kt`:**
@@ -42,11 +42,12 @@
 6. **`ProfileFeatureUnitTest.kt` و `ProfileSheetComposeTest.kt`:**
    - تست پارس کامل `MyProfile_page_sanitized.html` توسط `ProfileParser`، طبقه‌بندی `TYPE_PROFILE`، دریافت تصویر `UserImage.ashx` (`image/jpg` + بایت‌های جادویی JPEG) در `ProfileRepository`، پالایش PII و تست رابط کاربری Compose در `ProfileModalSheet` (Robolectric).
 
-### ج) کپچای روی دستگاه و آزمایشگاه کپچا (Captcha Lab)
-7. **`CaptchaPreprocessPipelineUnitTest.kt`، `MlKitCaptchaSolverUnitTest.kt` و `AuthViewModelAutoCaptchaUnitTest.kt`:**
+### ج) کپچای روی دستگاه، مدیریت ماژول گوگل‌پلی و آزمایشگاه کپچا (Captcha Lab)
+7. **`CaptchaPreprocessPipelineUnitTest.kt`، `MlKitCaptchaSolverUnitTest.kt`، `OcrModuleControllerUnitTest.kt` و `AuthViewModelAutoCaptchaUnitTest.kt`:**
    - تست الگوریتم‌های پیش‌پردازش، مسیر اصلی فریم رنگی رمزگشایی‌شده (`useDecodedColorFrame`) و ۲ مسیر جایگزین بدون حذف نویز، اعتبارسنجی ۴ رقمی با `OcrSession` جعلی، لغو Job هنگام «کد جدید»، عدم رونویسی متن کاربر و عدم ورود خودکار.
+   - تست چرخه وضعیت `OcrModuleController` (نبود Google Play Services، ماژول نصب‌نشده بدون شروع دانلود خودکار در ورود، دانلود دستی از طریق `ModuleInstallClient` با درصد پیشرفت و نگاشت خطاها) و غیرفعال‌سازی ایمن در `SettingsScreenContent`.
 8. **`CaptchaLabCoreUnitTest.kt` و `CaptchaLabComposeTest.kt`:**
-   - تست بایگانی محلی آزمایشگاه کپچا، فیلتر `UNLABELED` و شمارنده وضعیت، موتور شبیه‌سازی غیرمخرب `CaptchaSolverSimulationEngine`، و تست‌های Compose صفحه `CaptchaLabScreen` (Robolectric).
+   - تست بایگانی محلی آزمایشگاه کپچا، فیلتر `UNLABELED` و شمارنده وضعیت، موتور شبیه‌سازی غیرمخرب `CaptchaSolverSimulationEngine`، و تست‌های Compose صفحه `CaptchaLabScreen` شامل دکمه دانلود دستی و غیرفعال ماندن ابزارهای OCR هنگام آماده نبودن ماژول (Robolectric).
 
 ### د) امنیت شبکه، احراز هویت و دسترسی‌پذیری
 9. **`MockWebServerSecurityUnitTest.kt` و `LoginSessionIsolationUnitTest.kt`:**

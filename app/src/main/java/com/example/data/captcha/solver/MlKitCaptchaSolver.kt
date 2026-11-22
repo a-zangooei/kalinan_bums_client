@@ -57,7 +57,7 @@ internal interface OcrSession : AutoCloseable {
 }
 
 /**
- * پیاده‌سازی واقعی موتور ML Kit Text Recognition (مدل Bundled Latin) بدون ذخیره فایل و بدون لاگ.
+ * پیاده‌سازی واقعی موتور ML Kit Text Recognition (مدل Unbundled از طریق Google Play Services) بدون ذخیره فایل و بدون لاگ.
  */
 internal class MlKitOcrSession(
     private val recognizer: TextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
@@ -167,7 +167,7 @@ data class CaptchaSolverConfig(
 }
 
 /**
- * پیاده‌سازی [CaptchaSolver] با اتصال به پیش‌پردازش فاز ۱۰ و ML Kit Bundled Latin Text Recognition.
+ * پیاده‌سازی [CaptchaSolver] با اتصال به پیش‌پردازش و ML Kit Unbundled Text Recognition (Google Play Services).
  *
  * ویژگی‌ها:
  * - اجرا روی [Dispatchers.Default] با تایم‌اوت کوتاه ۲۵۰۰ میلی‌ثانیه.

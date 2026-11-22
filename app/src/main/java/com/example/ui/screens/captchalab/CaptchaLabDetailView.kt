@@ -85,6 +85,7 @@ internal fun CaptchaLabDetailView(
     repository: CaptchaLabRepository,
     record: CaptchaLabRecord,
     isBenchmarkRunning: Boolean = false,
+    isOcrModuleReady: Boolean = true,
     onRunStageBenchmark: (attemptNumber: Int?) -> Unit = {},
     onSaveExpectedDigits: (String?) -> Unit = {},
     onBack: () -> Unit,
@@ -188,6 +189,7 @@ internal fun CaptchaLabDetailView(
                         record = record,
                         selectedAttemptNumber = activeAttemptNum,
                         isBenchmarkRunning = isBenchmarkRunning,
+                        isOcrModuleReady = isOcrModuleReady,
                         onRunStageOcr = { onRunStageBenchmark(selectedAttempt?.attemptNumber) },
                         onSaveExpectedDigits = { digits -> onSaveExpectedDigits(digits) },
                         onClearExpectedDigits = { onSaveExpectedDigits(null) }
