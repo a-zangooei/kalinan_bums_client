@@ -1,0 +1,104 @@
+{
+ "logout_link_markup": "<a id=\"logout\" formnovalidate=\"formnovalidate\" style=\"float: left;\" href=\"javascript:__doPostBack('ctl00$logout','')\"><img src=\"../images/Style/logout.png\" title=\"خروج\" /></a>",
+ "pages": [
+  {
+   "page": "Default",
+   "path": "/Master/Default.aspx",
+   "form_action": "./Default.aspx",
+   "form_id": "MainForm",
+   "viewstate_generator": "79A64AFF",
+   "viewstate_len_chars": 704,
+   "eventvalidation": false,
+   "logout_body_fields": [
+    "__EVENTTARGET",
+    "__EVENTARGUMENT",
+    "__VIEWSTATE",
+    "__VIEWSTATEGENERATOR",
+    "__VIEWSTATEENCRYPTED"
+   ],
+   "body_bytes": 842,
+   "response": "302 -> /Login.aspx",
+   "captured": true
+  },
+  {
+   "page": "Reservation",
+   "path": "/Reservation/Reservation.aspx",
+   "form_action": "./Reservation.aspx",
+   "form_id": "MainForm",
+   "viewstate_generator": "3ED98A75",
+   "viewstate_len_chars": 37292,
+   "eventvalidation": false,
+   "logout_body_fields": [
+    "__EVENTTARGET",
+    "__EVENTARGUMENT",
+    "__LASTFOCUS",
+    "__VIEWSTATE",
+    "__VIEWSTATEGENERATOR",
+    "__VIEWSTATEENCRYPTED",
+    "ctl00$cphMain$hdnSelectedTab",
+    "css3-tabstrip-0",
+    "ctl00$cphMain$grdReservationLunch$ctlNN$chkReserve (فقط ردیف‌های تیک‌خورده)",
+    "ctl00$cphMain$grdReservationLunch$ctlNN$drpSelf",
+    "ctl00$cphMain$grdReservationLunch$ctlNN$drpFood",
+    "ctl00$cphMain$grdReservationLunch$ctlNN$drpFoodCount"
+   ],
+   "body_bytes": 40074,
+   "response": "302 -> /Login.aspx",
+   "captured": true,
+   "note": "مرورگر کل کنترل‌های موفق فرم را فرستاد؛ صفحه ۱۰۳ کنترل دارد (ردیف‌های رزرو). فقط ردیف‌های تیک‌خورده و گزینه‌های انتخاب‌شده ارسال شدند."
+  },
+  {
+   "page": "MyProfile",
+   "path": "/MyCullinan/MyProfile.aspx",
+   "form_action": "./MyProfile.aspx",
+   "form_id": "MainForm",
+   "viewstate_generator": "B57DACA3",
+   "viewstate_len_chars": 1644,
+   "eventvalidation": false,
+   "logout_body_fields": [
+    "__EVENTTARGET",
+    "__EVENTARGUMENT",
+    "__VIEWSTATE",
+    "__VIEWSTATEGENERATOR",
+    "__VIEWSTATEENCRYPTED"
+   ],
+   "body_bytes": 1848,
+   "response": "302 -> /Login.aspx",
+   "captured": true
+  },
+  {
+   "page": "MyMessage",
+   "path": "/MyCullinan/MyMessage.aspx",
+   "form_action": "./MyMessage.aspx",
+   "form_id": "MainForm",
+   "form_extra": "onkeypress=WebForm_FireDefaultButton(event,'cphMain_btnOk')",
+   "viewstate_generator": "87AF9C2D",
+   "viewstate_len_chars": 3116,
+   "eventvalidation": false,
+   "logout_body_fields": [
+    "__EVENTTARGET",
+    "__EVENTARGUMENT",
+    "__VIEWSTATE",
+    "__VIEWSTATEGENERATOR",
+    "__VIEWSTATEENCRYPTED",
+    "ctl00$cphMain$hdnId"
+   ],
+   "body_bytes": 3433,
+   "response": "302 -> /Login.aspx",
+   "captured": true,
+   "note": "hdnId یک hidden معمولی است (خالی) و مرورگر آن را هم فرستاد؛ دکمه‌های imgbtnMessageText (image) فرستاده نشدند."
+  },
+  {
+   "page": "Survey_Answer",
+   "path": "/Survey/Survey_Answer.aspx",
+   "form_action": "./Survey_Answer.aspx",
+   "form_id": "MainForm",
+   "viewstate_generator": "4D6A1972",
+   "viewstate_len_chars": 1516,
+   "eventvalidation": false,
+   "logout_body_fields": "ضبط نشده؛ لینک a#logout در HTML هست",
+   "captured": false
+  }
+ ],
+ "note": "VIEWSTATEGENERATOR مخصوص هر صفحه است و باید از HTML همان صفحه خوانده شود."
+}

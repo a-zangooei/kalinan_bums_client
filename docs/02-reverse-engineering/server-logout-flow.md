@@ -1,117 +1,200 @@
-# 🚪 پیاده‌سازی «خروج واقعی» از سامانه کالینان (Server-Side Logout)
+# 🚪 پیاده‌سازی «خروج واقعی» از سامانه کالینان (Server-Side & Universal Logout)
 
-این مستند به تحلیل دقیق فنی و پیاده‌سازی فرآیند **خروج واقعی (Server-Side Session Termination)** از سامانه تغذیه کالینان دانشگاه علوم پزشکی بیرجند (`jeton.bums.ac.ir`) بر مبنای ضبط ترافیک زنده و رمزگشایی TLS مرورگر Chrome (توسط ابزار PCAPdroid) می‌پردازد.
+این مستند تحلیل کامل فنی، پروتکل مهندسی معکوس‌شده و راهنمای پیاده‌سازی **خروج واقعی و پویا (Universal Server-Side Logout)** از سامانه تغذیه کالینان دانشگاه علوم پزشکی بیرجند (`jeton.bums.ac.ir`) را تشریح می‌کند.
 
----
+مبنای مستندات: ضبط ترافیک زنده مرورگر Chrome روی اندروید با رمزگشایی TLS توسط **PCAPdroid** (تاریخ ۱۴۰۵/۰۹/۰۲ — ۲۰۲۶-۱۱-۲۳) که **چهار خروج مستقل از چهار صفحه‌ی مختلف** (داشبورد، رزرو، پروفایل من و پیام‌ها) را پوشش می‌دهد. این نسخه گزارش قبلی خروج (محدود به صفحات رزرو و پروفایل) را تکمیل و جایگزین می‌کند.
 
-## ۱. هدف و ضرورت پیاده‌سازی
+> برچسب‌های اطمینان در این سند: **`[اندازه‌گیری]`** (مستقیماً در ضبط مشاهده شده)، **`[استنباط]`** (نتیجه‌گیری فنی از داده‌های ضبط‌شده) و **`[تأییدنشده]`** (در ضبط دیده نشده و نیازمند آزمون است).
 
-پیش از این، کلاینت‌های غیررسمی برای خروج صرفاً کوکی‌های محلی دستگاه (`CullinanCookieJar`) را پاک می‌کردند. این اقدام کافی نبود؛ زیرا سشن کاربر (`ASP.NET_SessionId`) در حافظه سرور دانشگاه تا زمان منقضی شدن فعال می‌ماند. برای ابطال قطعی نشست در سمت سرور، کلاینت باید دکمه خروج وب‌سایت را همانند رفتار مرورگر شبیه‌سازی کرده و سپس وضعیت محلی را تخلیه نماید.
-
----
-
-## ۲. دکمه خروج در ساختار HTML سایت
-
-در هدر مشترک صفحات مستر سامانه (هم داشبورد `Master/Default.aspx` و هم جدول `Reservation/Reservation.aspx`):
-
-```html
-<a id="logout" href="javascript:__doPostBack('ctl00$logout','')">
-  <img src="../images/Style/logout.png" title="خروج" />
-</a>
-```
-
-این دکمه یک رویداد استاندارد `__doPostBack` در چارچوب ASP.NET WebForms است:
-- پارامتر `__EVENTTARGET` برابر با `ctl00$logout` تنظیم می‌شود.
-- کل فرم صفحه (`MainForm`) به صورت یک درخواست **POST سنکرون و معمولی (غیر Ajax / غیر Delta)** ارسال می‌گردد.
-- این المان خارج از `UpdatePanel` قرار دارد؛ بنابراین هدرهای `X-MicrosoftAjax` و `X-Requested-With` و فیلد `__ASYNCPOST` به سرور ارسال **نمی‌شوند**.
+**فیکسچرهای پاک‌سازی‌شده‌ی مرتبط:**
+- [`Logout_flow_sanitized.txt`](../05-samples-and-fixtures/Logout_flow_sanitized.txt): ترتیب زمانی چهار خروج، هدرها، بدنه و چرخه‌ی کوکی.
+- [`Logout_pages_comparison.json`](../05-samples-and-fixtures/Logout_pages_comparison.json): مقایسه‌ی فرم، کنترل‌های ارسالی و `__VIEWSTATEGENERATOR` در پنج صفحه.
+- [`Logout_Default_page_sanitized.html`](../05-samples-and-fixtures/Logout_Default_page_sanitized.html): HTML کامل صفحه‌ی داشبورد (`Default.aspx`) شامل لینک خروج.
+- همچنین از فیکسچرهای [`MyProfile_page_sanitized.html`](../05-samples-and-fixtures/MyProfile_page_sanitized.html) و [`Survey_page_sanitized.html`](../05-samples-and-fixtures/Survey_page_sanitized.html) نیز می‌توان برای تست پارسر خروج استفاده کرد.
 
 ---
 
-## ۳. تحلیل ترافیک در ضبط واقعی (Packet Capture)
+## ۱. خلاصه‌ی یافته‌های کلیدی
+
+1. دکمه‌ی خروج در **قالب مشترک (Master Page)** سامانه قرار دارد و در همه‌ی صفحات احراز هویت‌شده یکسان است: `<a id="logout" href="javascript:__doPostBack('ctl00$logout','')">`. `[اندازه‌گیری]`
+2. خروج یک درخواست **`POST` کامل و عادی (غیر Ajax)** به **همان صفحه‌ای است که کاربر در آن قرار دارد** (آدرس مقصد = مقدار حل‌شده‌ی `action` فرم همان صفحه) با `__EVENTTARGET=ctl00$logout`. `[اندازه‌گیری]`
+3. حتی در صفحه‌ی رزرو که از `UpdatePanel` استفاده می‌کند، خروج Ajax نیست و هیچ هدر `X-MicrosoftAjax` یا فیلد `__ASYNCPOST` ارسال نمی‌شود. `[اندازه‌گیری]`
+4. پاسخ سرور در هر چهار صفحه یکسان است: کد وضعیت **`302 Found`** با `Location: /Login.aspx` و هدر `Set-Cookie: ASP.NET_SessionId=` با مقدار خالی. `[اندازه‌گیری]`
+5. بدنه‌ی درخواست خروج به صفحه‌ی مبدأ وابسته است: فیلدهای پایه‌ی ASP.NET (`__EVENTTARGET`، `__EVENTARGUMENT`، `__VIEWSTATE`، `__VIEWSTATEGENERATOR`، `__VIEWSTATEENCRYPTED`) به‌همراه **همه‌ی کنترل‌های موفق (Successful Controls) فرم همان صفحه** (مانند `__LASTFOCUS`، فیلد مخفی `hdnId` یا ردیف‌های تیک‌خورده‌ی رزرو). حجم بدنه از `842` بایت در داشبورد تا `40074` بایت در صفحه‌ی رزرو متغیر است. `[اندازه‌گیری]`
+6. مقدار `__VIEWSTATEGENERATOR` **مخصوص هر صفحه** است و نباید هرگز ثابت در کد قرار داده شود؛ بلکه باید همیشه از HTML همان صفحه استخراج گردد. `[اندازه‌گیری]`
+7. بدنه‌ی پاسخ `302` شامل پیغام `Object moved…` **به‌همراه HTML کامل همان صفحه‌ی مبدأ (حاوی اطلاعات شخصی دانشجو)** بین `12110` تا `113857` بایت است؛ این بدنه باید **بلافاصله دور ریخته شود** و هرگز پارس، کش یا لاگ نشود. `[اندازه‌گیری]`
+8. سرور هنگام خروج فقط `ASP.NET_SessionId` را خالی می‌کند و کوکی‌های دیگر (`keyId`، `__AntiXsrfToken`، `accordianActiveIndex`) دست‌نخورده می‌مانند؛ بنابراین پاک‌سازی کامل کوکی‌های میزبان در کلاینت الزامی است. `[اندازه‌گیری]`
+9. به‌دلیل یکسان بودن الگوی خروج در تمام صفحات Master، می‌توان **یک سرویس خروج عمومی و پویا** پیاده‌سازی کرد که تنها با داشتن HTML صفحه‌ی فعلی (یا دریافت صفحه‌ی سبک داشبورد در حالت بازگشت) از هر صفحه‌ای خارج شود.
+
+---
+
+## ۲. مقایسه‌ی چهار خروج مشاهده‌شده در ضبط واقعی
+
+| # | صفحه | آدرس POST (`action` فرم) | `__VIEWSTATEGENERATOR` | طول `__VIEWSTATE` (نویسه) | فیلد / بایت بدنه | فیلدهای اضافه‌ی مشاهده‌شده |
+|---|---|---|---|---|---|---|
+| ۱ | داشبورد (`/Master/Default.aspx`) | `./Default.aspx` | `79A64AFF` | ۷۰۴ | ۵ / ۸۴۲ | — |
+| ۲ | رزرو (`/Reservation/Reservation.aspx`) | `./Reservation.aspx` | `3ED98A75` | ۳۷۲۹۲ | ۱۲+ / ۴۰۰۷۴ | `__LASTFOCUS`، `ctl00$cphMain$hdnSelectedTab`، `css3-tabstrip-0=on`، و برای هر ردیف تیک‌خورده: `chkReserve`، `drpSelf`، `drpFood`، `drpFoodCount` |
+| ۳ | پروفایل من (`/MyCullinan/MyProfile.aspx`) | `./MyProfile.aspx` | `B57DACA3` | ۱۶۴۴ | ۵ / ۱۸۴۸ | — |
+| ۴ | پیام‌ها (`/MyCullinan/MyMessage.aspx`) | `./MyMessage.aspx` | `87AF9C2D` | ۳۱۱۶ | ۶ / ۳۴۳۳ | `ctl00$cphMain$hdnId=` (مقدار خالی) |
+| ۵ | نظرسنجی (`/Survey/Survey_Answer.aspx`) *(ضبط‌نشده)* | `./Survey_Answer.aspx` | `4D6A1972` | ۱۵۱۶ | — | لینک `a#logout` در HTML صفحه موجود است `[اندازه‌گیری]`؛ خروج از آن ضبط نشده `[تأییدنشده]` |
+
+- در هر چهار مورد ضبط‌شده، طول `__VIEWSTATE` ارسالی دقیقاً برابر طول `__VIEWSTATE` در DOM همان صفحه بود (مرورگر مقدار فعلی صفحه را ارسال کرده است). `[اندازه‌گیری]`
+- هیچ‌کدام از چهار صفحه `__EVENTVALIDATION` نداشتند؛ بااین‌حال در الگوریتم عمومی، در صورت وجود این فیلد در هر صفحه‌ی دیگر باید همراه بدنه ارسال شود. `[تأییدنشده]`
+- در صفحه‌ی رزرو، ردیف‌های تیک‌خورده و انتخاب‌های فرم صرفاً به‌دلیل رفتار استاندارد مرورگر در ارسال همه‌ی کنترل‌های موفق به سرور فرستاده می‌شوند و **خروج تغییری در رزروها ذخیره نمی‌کند** (رویداد `ctl00$logout` است نه دکمه‌ی ذخیره). `[استنباط]`
+- دکمه‌های تصویری (`<input type="image">`) مانند `imgbtnMessageText` در صفحه‌ی پیام‌ها توسط مرورگر در بدنه‌ی خروج ارسال **نمی‌شوند**؛ زیرا ارسال دکمه‌ی تصویری باعث اجرای رویداد همان دکمه می‌شود. `[اندازه‌گیری]`
+
+### نمونه‌ی درخواست خروج (صفحه‌ی پروفایل من)
 
 ```http
-POST /Reservation/Reservation.aspx HTTP/2
-Host: jeton.bums.ac.ir
+POST https://jeton.bums.ac.ir/MyCullinan/MyProfile.aspx HTTP/2
 Content-Type: application/x-www-form-urlencoded
-Origin: https://jeton.bums.ac.ir
-Referer: https://jeton.bums.ac.ir/Reservation/Reservation.aspx
-Cookie: ASP.NET_SessionId=...; keyId=...; __AntiXsrfToken=...
-```
-
-### ساختار بدنه فرم ارسالی:
-
-| نام فیلد | مقدار ارسالی | توضیحات |
-|---|---|---|
-| `__EVENTTARGET` | `ctl00$logout` | هدف رویداد پست‌بک جهت فراخوانی تابع خروج سرور |
-| `__EVENTARGUMENT` | `""` | رشته تهی |
-| `__LASTFOCUS` | `""` | رشته تهی |
-| `__VIEWSTATE` | آخرین ViewState فعال صفحه | رشته کدگذاری‌شده وضعیت صفحه جاری |
-| `__VIEWSTATEGENERATOR` | `3ED98A75` | شناسه تولیدکننده ساختار صفحه |
-| `__VIEWSTATEENCRYPTED` | `""` | فیلد تهی |
-| `__EVENTVALIDATION` | توکن اعتبارسنجی رویداد | در صورت وجود در جدول فعال |
-| `ctl00$cphMain$hdnSelectedTab` | `css3-tabstrip-0-1` | تب انتخاب‌شده جدول هفتگی |
-| `css3-tabstrip-0` | `on` | استایل تب‌بار |
-| فیلدهای ردیف‌های ناهار | وضعیت چک‌باکس‌ها و منوها | ارسال ساختار کامل فرم مطابق مرورگر |
-
-### ۳.۱ خروج با بدنه‌ی کوچک از صفحاتی بدون ردیف فرم (`MyProfile.aspx`)
-بررسی ضبط جدید TLS-decrypted روی صفحه‌ی [`MyProfile.aspx`](./my-profile-and-user-image.md) تایید کرد که در صفحات فاقد ردیف‌های جدول رزرو، ارسال بدنه‌ی کوچک شامل **تنها ۵ فیلد** نیز منجر به خروج کامل و پاسخ `302 Found` به `/Login.aspx` می‌شود:
-
-```http
-POST https://jeton.bums.ac.ir/MyCullinan/MyProfile.aspx
-Content-Type: application/x-www-form-urlencoded
-Content-Length: 1848
 Origin: https://jeton.bums.ac.ir
 Referer: https://jeton.bums.ac.ir/MyCullinan/MyProfile.aspx
+Cookie: <نشست؛ شامل ASP.NET_SessionId و keyId و __AntiXsrfToken و ...>
+Content-Length: 1848
 
 __EVENTTARGET=ctl00%24logout&__EVENTARGUMENT=&__VIEWSTATE=<...>&__VIEWSTATEGENERATOR=B57DACA3&__VIEWSTATEENCRYPTED=
 ```
 
-> 📌 **وابستگی صفحه‌ای `__VIEWSTATEGENERATOR`:** مقدار این فیلد برای هر صفحه منحصربه‌فرد است (`Login.aspx`=`C2EE9ABB`، `MyMessage.aspx`=`87AF9C2D`، `Reservation.aspx`=`3ED98A75`، `MyProfile.aspx`=`B57DACA3`) و باید همواره به صورت پویا از HTML همان صفحه استخراج گردد.
+> هدرهای `Cache-Control: max-age=0` و `Upgrade-Insecure-Requests: 1` توسط مرورگر ارسال شده‌اند و الزامی به نظر نمی‌رسند؛ لزوم ارسال `Origin` و `Referer` در سرور `[تأییدنشده]` است، اما رعایت آن‌ها بی‌هزینه و مطابق رفتار مرورگر است.
 
----
-
-## ۴. پاسخ موفق سرور دانشگاه به خروج
+### پاسخ مشترک سرور به خروج
 
 ```http
 HTTP/2 302 Found
 Location: /Login.aspx
 Set-Cookie: ASP.NET_SessionId=; path=/; secure; HttpOnly; SameSite=None
-Cache-Control: no-cache, no-store
+Cache-Control: no-cache, no-store,no-store
+Pragma: no-cache
+Expires: -1
+Content-Type: text/html; charset=utf-8
+Content-Length: 12110..113857
 ```
 
-- **کد ۳۰۲ (Found):** سرور کاربر را به آدرس `/Login.aspx` هدایت (Redirect) می‌کند.
-- **ابطال کوکی سشن:** سرور با ارسال هدر `Set-Cookie` با مقدار خالی برای `ASP.NET_SessionId`، نشست را در لایه مرورگر باطل می‌کند.
+- زمان پاسخ‌دهی حدود `0.3` ثانیه بوده است. `[اندازه‌گیری]`
+- **نکته‌ی حیاتی حریم خصوصی:** بدنه‌ی پاسخ `302` شامل عبارت `Object moved to /Login.aspx` به همراه **HTML کامل صفحه‌ی مبدأ** (حاوی نام، شماره شناسایی، اعتبار یا جدول پیام‌ها/رزروها) است. کلاینت باید بلافاصله با بستن response یا صرف‌نظر کردن از خواندن stream آن را دور بریزد. `[اندازه‌گیری]`
 
 ---
 
-## ۵. معماری پیاده‌سازی در اپلیکیشن اندروید (`AuthRepository`)
+## ۳. چرخه‌ی کوکی و نشست در طول ورود و خروج
 
-1. **غیرفعال‌سازی ریدایرکت خودکار در OkHttp:**  
-   برای شناسایی دقیق پاسخ `302 Found` و تفکیک خروج موفق از شکست، درخواست خروج با کلاینت بدون ریدایرکت ارسال می‌شود:
-   ```kotlin
-   val noRedirectClient = baseClient.newBuilder()
-       .followRedirects(false)
-       .followSslRedirects(false)
-       .connectTimeout(6, TimeUnit.SECONDS)
-       .readTimeout(6, TimeUnit.SECONDS)
-       .build()
-   ```
-2. **بررسی پاسخ و تشخیص موفقیت:**
-   ```kotlin
-   val location = response.header("Location") ?: ""
-   val isSuccess = (response.code in 300..399 && location.contains("Login.aspx", ignoreCase = true)) ||
-           location.contains("Login.aspx", ignoreCase = true)
-   ```
-3. **پاک‌سازی بدون قیدوشرط محلی (Unconditional Local Purge):**
-   حتی اگر ارتباط اینترنتی قطع باشد یا سرور خطای ۵۰۰ دهد، کلاینت محلی بلافاصله اقدامات زیر را به انجام می‌رساند:
-   - پاک‌سازی سشن و کوکی‌ها با `CullinanHttpClient.cookieJar.clear()`.
-   - صفر کردن مقادیر مدل `UserSession` و منوی فعال در حافظه رم.
-   - حفظ اطلاعات ذخیره‌شده «مرا به خاطر بسپار» در صورت تمایل کاربر.
-   - نمایش پیام متناسب فارسی با `Toast` به کاربر.
+| مرحله | رفتار مشاهده‌شده‌ی سرور `[اندازه‌گیری]` |
+|---|---|
+| `POST` خروج | `Set-Cookie: ASP.NET_SessionId=` (مقدار خالی). سایر کوکی‌ها (`keyId`، `__AntiXsrfToken`، `accordianActiveIndex`) تغییر نمی‌کنند. |
+| `GET /Login.aspx` بعدی | کلاینت `ASP.NET_SessionId` خالی می‌فرستد. سرور یک **`ASP.NET_SessionId` جدید** (`24` نویسه، دو بار با همین نام ارسال می‌شود و آخری معتبر است) و یک **`keyId` جدید** (`24` نویسه، `expires` حدود **۲ دقیقه** بعد) صادر می‌کند. |
+| `POST /Login.aspx` موفق | پاسخ `302` به `/Master/Default.aspx` **بدون** هدر `Set-Cookie`؛ همان `ASP.NET_SessionId` و `keyId` مرحله‌ی `GET /Login.aspx` ادامه می‌یابند. |
+| `__AntiXsrfToken` | در هر چهار چرخه‌ی خروج و ورود مجدد یکسان ماند و فقط در اولین `GET` داشبورد صادر شده بود. |
+
+**نتیجه‌گیری‌های عملیاتی:**
+- این موضوع که آیا شناسه‌ی `ASP.NET_SessionId` قبلی پس از خروج واقعاً در حافظه‌ی سرور غیرفعال می‌شود یا خیر، در این ضبط آزمایش نشده است (پس از خروج از کوکی قبلی استفاده‌ای نشد). `[تأییدنشده]`
+- کوکی‌های `_ga*` متعلق به Google Analytics هستند و ارسال یا نگهداری آن‌ها توسط کلاینت اندرویدی ضرورتی ندارد.
+- **نکته‌ی مهم برای ورود:** کوکی `keyId` عمر حدود **۲ دقیقه** از لحظه‌ی `GET /Login.aspx` دارد. اگر کاربر بیش از دو دقیقه برای وارد کردن کد امنیتی منتظر بماند، ممکن است درخواست ورود با شکست مواجه شود. `[استنباط]`
+
+### فهرست پاک‌سازی قطعی سمت کلاینت (پس از هر خروج؛ موفق یا ناموفق)
+
+1. پاک‌سازی **تمامی** کوکی‌های میزبان `jeton.bums.ac.ir` در `CookieJar` (نه فقط `ASP.NET_SessionId`)، زیرا سرور `keyId` و `__AntiXsrfToken` را پاک نمی‌کند.
+2. صفر کردن حالت حافظه‌ای نشست: پروفایل (`ProfileState`)، تصویر چهره (`avatarBytes`)، اعتبار، فهرست پیام‌ها (`MessagesPageState`)، منوی هفتگی (`WeeklyMenu`)، پاسخ‌های نظرسنجی و ViewStateهای نگهداری‌شده.
+3. پاک‌سازی رمز عبور از حافظه (اطلاعات ذخیره‌شده‌ی «ذخیره اطلاعات ورود» در `UserPreferences` با حفظ قفل بیومتریک دست‌نخورده باقی می‌ماند مگر اینکه کاربر پاک‌سازی آن را انتخاب کند).
+4. لغو درخواست‌های جاری مربوط به نشست قبلی تا پس از خروج پردازش یا نمایش داده نشوند.
+5. شروع نشست بعدی الزاماً از `GET /Login.aspx`.
 
 ---
 
-## ۶. نتایج آزمون‌های واحد و شبیه‌سازی (Unit Tests)
+## ۴. الگوریتم استاندارد خروج پویا (برای هر صفحه و هر وضعیت)
 
-- در کلاس `MockWebServerSecurityUnitTest`، سناریوهای بازگشت کد ۳۰۲ و باطل‌سازی کوکی با وب‌سرور شبیه‌ساز راستی‌آزمایی شده است.
-- رفتار شبکه در شرایط قطعی اینترنت و تایم‌اوت ارزیابی شده و تضمین می‌کند که رابط کاربری دچار قفل‌شدگی نمی‌شود.
+این الگو جایگزین ارسال ثابت به یک صفحه‌ی خاص است و در تمام صفحات Master (از جمله هنگام قفل بودن منو روی `MyMessage.aspx` یا `Survey_Answer.aspx`) کار می‌کند:
+
+### ورودی
+آخرین **HTML کامل** صفحه‌ی احراز هویت‌شده (حاصل از `GET` یا `POST` غیر Ajax) و **آدرس واقعی همان صفحه (`pageUrl`)**.
+
+### گام‌های اجرا
+1. **استخراج هدف پست‌بک خروج:** عنصر `a#logout` را در DOM بیابید و از ویژگی `href` عبارت داخل `javascript:__doPostBack('<target>','<argument>')` را با الگوی زیر استخراج کنید (Jsoup مقادیر entity مانند `&#39;` را به‌طور خودکار دیکد می‌کند):
+   ```kotlin
+   Regex("""__doPostBack\('([^']*)','([^']*)'\)""")
+   ```
+   در صورت نبود، مقدار پیش‌فرض `target = "ctl00\$logout"` و `argument = ""` است.
+2. **یافتن فرم و آدرس مقصد:** عنصر `form#MainForm` (یا نخستین `form` دارای `input#__VIEWSTATE`) را بیابید و آدرس را نسبت به صفحه‌ی جاری حل کنید: `pageUrl.resolve(form.attr("action"))` (برای مثال `./Default.aspx` روی `/Master/Default.aspx`).
+3. **ساخت بدنه‌ی کنترل‌های موفق (مطابق مرورگر):**
+   - `input` از انواع `hidden`, `text`, `password`, `number` و غیره با نام و مقدار فعلی.
+   - `checkbox` و `radio` فقط در صورت داشتن صفت `checked` (مقدار `value` یا پیش‌فرض `on`).
+   - `select`: گزینه‌ی `selected` (یا نخستین گزینه برای select تک‌انتخابی در صورت نبود `selected`).
+   - `textarea`: متن داخلی آن.
+   - **نادیده گرفتن:** کنترل‌های `disabled`، بدون `name`، و انواع `submit`، `button`، `image` (`<input type="image">`)، `reset` و `file`.
+   - سپس بازنویسی `__EVENTTARGET = target` و `__EVENTARGUMENT = argument` (بدون ایجاد کلید تکراری).
+4. **ارسال POST بدون ریدایرکت:** ارسال `application/x-www-form-urlencoded` با هدرهای `Origin` و `Referer` برابر آدرس صفحه و **`followRedirects = false` / `followSslRedirects = false`**.
+5. **ارزیابی پاسخ بدون خواندن بدنه:**
+   - اگر کد `302` و هدر `Location` به `/Login.aspx` ختم شود ← **موفق**.
+   - هر وضعیت دیگر (`200`، `302` به آدرس دیگر، `500`) ← **ناموفق** و اجرای یک‌باره مسیر بازگشت (در صورت امکان).
+   - بدنه‌ی پاسخ `302` **خوانده، کش یا لاگ نشود**.
+6. **پاک‌سازی محلی بدون قیدوشرط:** اجرای گام‌های بخش ۳ در پایان (چه موفق و چه ناموفق/خطای شبکه).
+
+### نگاشت وضعیت صفحه‌ی فعلی به جریان خروج
+
+| وضعیت کلاینت در لحظه‌ی کلیک «خروج» | اقدام پیشنهادی |
+|---|---|
+| آخرین پاسخ، HTML کامل یک صفحه‌ی Master است | اجرای مستقیم گام‌های ۱ تا ۶ روی همان صفحه |
+| آخرین پاسخ، Delta (`UpdatePanel` / Ajax) بوده است | اجرای مسیر بازگشت، یا اعمال رکوردهای `hiddenField` دلتا (`__VIEWSTATE`, `__VIEWSTATEGENERATOR`, `__VIEWSTATEENCRYPTED`, `__EVENTVALIDATION`) بر آخرین HTML کامل صفحه |
+| HTML صفحه‌ای در حافظه نیست (بازگشت از پس‌زمینه، خطا، یا شروع مجدد) | اجرای مسیر بازگشت |
+| صفحه فاقد `a#logout` یا خود `/Login.aspx` است | نشست از قبل بسته شده است (`AlreadyLoggedOut`) ← فقط پاک‌سازی محلی |
+
+### مسیر بازگشت ایمن (Fallback)
+1. ارسال `GET /Master/Default.aspx` با دنبال کردن ریدایرکت (داشبورد سبک‌ترین صفحه‌ی سامانه است: حدود `13.5 KB` و `__VIEWSTATE` با `704` نویسه).
+2. اگر مقصد نهایی `/Login.aspx` بود ← نشست از قبل منقضی یا بسته شده است (`AlreadyLoggedOut`).
+3. در غیر این صورت، صفحه‌ی بازگشتی (داشبورد، یا `MyMessage.aspx` / `Survey_Answer.aspx` در صورت فعال بودن قفل اجباری) دارای لینک `a#logout` است؛ گام‌های ۱ تا ۵ فقط **یک بار** (بدون حلقه) روی آن اجرا می‌شود.
+
+---
+
+## ۵. وضعیت پیاده‌سازی فعلی در کلاینت اندروید و طرح ارتقای پویا
+
+### وضعیت فعلی (`AuthRepository` و `AuthFormBuilder`)
+در پیاده‌سازی کنونی کلاینت اندروید:
+1. متد `AuthRepository.logoutFromServer(currentMenu: WeeklyMenu?)` از حالت `WeeklyMenu` موجود (در صورت داشتن `viewState`) استفاده می‌کند و در نبود آن یک درخواست `GET` به `Reservation/Reservation.aspx` می‌فرستد تا از طریق `AuthHtmlParser.extractHiddenFields` مقادیر `__VIEWSTATE`، `__VIEWSTATEGENERATOR` (پیش‌فرض `"3ED98A75"`) و `__EVENTVALIDATION` را استخراج کند.
+2. فرم خروج توسط `AuthFormBuilder.buildLogoutFormBody` با `__EVENTTARGET = "ctl00$logout"` و فیلدهای ثابت صفحه‌ی رزرو (`ctl00$cphMain$hdnSelectedTab`، `css3-tabstrip-0=on` و ردیف‌های ناهار رزروشده) ساخته شده و به `Reservation.aspx` ارسال می‌شود.
+3. درخواست با `CullinanHttpClient.executeCallNoRedirect(request)` فرستاده می‌شود تا پاسخ `302` و هدر `Location` بررسی گردند.
+4. پس از اتمام (حتی در صورت خطای شبکه یا کد غیر ۳۰۲)، `MainActivity` پاک‌سازی محلی (`CullinanHttpClient.cookieJar.clear()`، صفر کردن `UserSession`، منو، پیام‌ها و داده‌های پروفایل و حفظ اختیاری اطلاعات ورود ذخیره‌شده) را انجام می‌دهد.
+
+### شکاف‌ها و بهبودهای پیشنهادی برای انطباق کامل با الگوی پویا
+- **استفاده از `PageState` پویا به جای وابستگی همیشگی به `Reservation.aspx`:** در حالت قفل پیام (`MyMessage.aspx`) یا نظرسنجی (`Survey_Answer.aspx`) و یا وقتی کاربر هنوز وارد صفحه‌ی رزرو نشده، دریافت `GET /Master/Default.aspx` (۱۳٫۵ کیلوبایت) بسیار سبک‌تر از دریافت صفحه‌ی سنگین `Reservation.aspx` بوده و روی صفحات قفل‌شده نیز مستقیماً کار می‌کند.
+- **دور ریختن کامل بدنه‌ی `302`:** در کد فعلی هنگام `executeCallNoRedirect` عبارت `bodyString = response.body?.string() ?: ""` خوانده می‌شود. از آنجا که پاسخ `302` خروج شامل HTML کامل صفحه‌ی مبدأ با داده‌های شخصی است، بهتر است هنگام `responseCode == 302` با `Location` منتهی به `Login.aspx` از خواندن بدنه صرف‌نظر شود.
+- **قفل هم‌زمانی (Mutex) و دکمه:** استفاده از Mutex برای جلوگیری از ارسال دو درخواست خروج هم‌زمان یا تداخل با درخواست‌های پس‌زمینه و لغو Jobهای نشست قبلی.
+- **پاک‌سازی امن کلاینت SSL:** درخواست خروج دارای کوکی نشست است و مطابق سیاست امنیتی، باید روی کلاینت معتبر ارسال گردد.
+
+---
+
+## ۶. رفتارهای مرزی، حریم خصوصی و امنیت
+
+| سناریو | رفتار استاندارد پیشنهادی |
+|---|---|
+| **خروج حین درخواست دیگر یا لمس مکرر** | استفاده از Mutex مشترک + غیرفعال‌سازی دکمه (`isLoggingOut`) تا پایان عملیات |
+| **نشست از قبل منقضی‌شده** | `GET` مسیر بازگشت به `/Login.aspx` ریدایرکت می‌شود ← نتیجه `AlreadyLoggedOut` ← خروج موفق |
+| **خطای شبکه یا Timeout** | پاک‌سازی کامل محلی و هدایت به صفحه‌ی ورود + پیام نرم فارسی («خروج در سمت سرور تأیید نشد») |
+| **پاسخ `200` به‌جای `302`** | نشانه‌ی کهنه بودن ViewState یا نقص فیلد ← یک بار اجرای مسیر بازگشت و تلاش مجدد |
+| **تغییرات ذخیره‌نشده در رزرو** | خروج در سرور تغییرات را ذخیره نمی‌کند؛ در صورت نیاز قبل از خروج هشدار UI نمایش داده شود |
+| **«ذخیره اطلاعات ورود» فعال** | خروج نشست را می‌بندد و اعتبار ذخیره‌شده را حذف نمی‌کند، اما ورود خودکار پس از خروج دستی انجام نمی‌شود |
+
+**الزامات حریم خصوصی و لاگ‌گیری (`AppLogger` و `LogSanitizer`):**
+- بدنه‌ی درخواست خروج (`__VIEWSTATE`، فیلدهای فرم رزرو) و بدنه‌ی پاسخ `302` (HTML حاوی مشخصات کاربر) هرگز نباید لاگ یا کش شوند.
+- فقط متادیتای غیرحساس مانند نام عملیات، صفحه‌ی مبدأ، کد وضعیت HTTP و نتیجه‌ی خروج ثبت می‌گردد.
+
+---
+
+## ۷. آزمون‌ها و موارد تأییدنشده
+
+### وضعیت تست فعلی و موارد پیشنهادی
+- در `MockWebServerSecurityUnitTest`، سناریوهای خروج سرور (`302` به `/Login.aspx`، پاک‌سازی کوکی، خطای شبکه و ۵۰۰) روی جریان فعلی پوشش داده شده‌اند.
+- برای پوشش الگوریتم عمومی خروج در آینده، تست‌های زیر بر مبنای فیکسچرهای موجود پیشنهاد می‌شوند:
+  1. **پارسر لینک خروج:** استخراج `ctl00$logout` و آرگومان خالی از `a#logout` در [`Logout_Default_page_sanitized.html`](../05-samples-and-fixtures/Logout_Default_page_sanitized.html)، [`MyProfile_page_sanitized.html`](../05-samples-and-fixtures/MyProfile_page_sanitized.html) و [`Survey_page_sanitized.html`](../05-samples-and-fixtures/Survey_page_sanitized.html).
+  2. **ساخت بدنه‌ی چهار صفحه:** مطابقت با جدول [`Logout_pages_comparison.json`](../05-samples-and-fixtures/Logout_pages_comparison.json) (تعداد فیلدها، `__VIEWSTATEGENERATOR` اختصاصی هر صفحه، `hdnId`، ردیف‌های تیک‌خورده و نبود دکمه‌های تصویری).
+  3. **حل نسبی آدرس فرم:** `action="./MyProfile.aspx"` ← `/MyCullinan/MyProfile.aspx`.
+  4. **آزمون عدم نشت داده:** اطمینان از عدم خواندن/ثبت بدنه‌ی بزرگ HTML در پاسخ `302` و نبود `ViewState` یا کوکی در لاگ.
+
+### فهرست موارد تأییدنشده `[تأییدنشده]`
+1. کارکرد بدنه‌ی حداقلی (فقط ۵ فیلد پایه‌ی ASP.NET) در صفحه‌ی `Reservation.aspx` بدون ارسال کنترل‌های جدول.
+2. خروج از صفحه‌ی `Survey_Answer.aspx` (لینک `a#logout` و `VIEWSTATEGENERATOR=4D6A1972` وجود دارد، اما درخواست POST آن ضبط نشده است).
+3. خروج با ViewState قدیمی‌تر پس از چند تبادل Ajax (`UpdatePanel`).
+4. تأیید تجربی باطل شدن شناسه‌ی نشست قدیمی روی سرور با ارسال درخواست مجدد پس از خروج.
+5. مدت دقیق انقضای نشست (Session Timeout) در سمت سرور در حالت بی‌فعالی.
+6. میزان حساسیت سرور به هدرهای `Origin`، `Referer` و `Sec-Fetch-*`.
+7. اثر دقیق انقضای ۲ دقیقه‌ای `keyId` بر درخواست ورود با تأخیر بالا.
+8. پاسخ سرور به ارسال `GET` مستقیم برای خروج (در ضبط تنها `POST` مشاهده شده است).
+9. وجود `__EVENTVALIDATION` در صفحات فرعی دیگر (مانند `MyTransaction.aspx`، `CreditTransfer.aspx` و `FoodBasket`).

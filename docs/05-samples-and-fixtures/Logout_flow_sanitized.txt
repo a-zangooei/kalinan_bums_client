@@ -1,0 +1,67 @@
+جریان چهار خروج در ضبط (بدون کوکی و بدون اطلاعات شخصی)
+مبنا: PCAPdroid با رمزگشایی TLS، Chrome 156 روی اندروید، ۱۴۰۵/۰۹/۰۲ (۲۰۲۶-۱۱-۲۳، ساعت ≈ 04:54–04:57 UTC).
+هدرهای sec-ch-ua*، Sec-Fetch-*، save-data، accept-encoding، priority حذف شده‌اند. مقدار کوکی‌ها هرگز نوشته نشده است.
+
+ترتیب رویدادها
+ t=22   GET  /Master/Default.aspx                (نشست از قبل باز بود)
+ t=29.6 POST /Master/Default.aspx      [خروج ۱]  → 302 /Login.aspx   (≈۰٫۳ ثانیه)
+ t=29.9 GET  /Login.aspx → 200 (نشست و keyId جدید)
+ t=44.9 POST /Login.aspx → 302 /Master/Default.aspx
+ t=45   GET  /Master/Default.aspx → 200
+ t=49.9 GET  /Reservation/Reservation.aspx → 200
+ t=53.9 POST /Reservation/Reservation.aspx [خروج ۲] → 302 /Login.aspx
+ t=54.7 GET  /Login.aspx → 200
+ t=70   POST /Login.aspx → 302 /Master/Default.aspx ;  GET /Master/Default.aspx → 200
+ t=74.4 GET  /MyCullinan/MyProfile.aspx → 200
+ t=78.4 POST /MyCullinan/MyProfile.aspx   [خروج ۳] → 302 /Login.aspx
+ t=78.6 GET  /Login.aspx → 200
+ t=96   POST /Login.aspx → 302 /Master/Default.aspx ;  GET /Master/Default.aspx → 200
+ t=109  GET  /MyCullinan/MyMessage.aspx → 200
+ t=113  POST /MyCullinan/MyMessage.aspx   [خروج ۴] → 302 /Login.aspx
+ t=113.4 GET /Login.aspx → 200
+
+درخواست خروج (الگوی مشترک، مثال خروج ۳ از «پروفایل من»)
+POST https://jeton.bums.ac.ir/MyCullinan/MyProfile.aspx
+Content-Type: application/x-www-form-urlencoded
+Origin: https://jeton.bums.ac.ir
+Referer: https://jeton.bums.ac.ir/MyCullinan/MyProfile.aspx
+Cache-Control: max-age=0
+Upgrade-Insecure-Requests: 1
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
+Cookie: <نشست؛ شامل ASP.NET_SessionId و keyId و __AntiXsrfToken و ...>
+Content-Length: 1848
+بدنه (decoded):
+  __EVENTTARGET=ctl00$logout
+  __EVENTARGUMENT=
+  __VIEWSTATE=VIEWSTATE_PLACEHOLDER                 (۱۶۴۴ کاراکتر؛ از HTML همان صفحه)
+  __VIEWSTATEGENERATOR=B57DACA3
+  __VIEWSTATEENCRYPTED=
+ (این یک POST عادی و کامل صفحه است؛ بدون X-MicrosoftAjax و بدون __ASYNCPOST)
+
+پاسخ (در هر چهار مورد یکسان)
+HTTP/2 302
+Location: /Login.aspx
+Set-Cookie: ASP.NET_SessionId=; path=/; secure; HttpOnly; SameSite=None      ← مقدار خالی (پاک‌کردن)
+Cache-Control: no-cache, no-store,no-store ; Pragma: no-cache ; Expires: -1
+Content-Type: text/html; charset=utf-8
+Content-Length: ۱۲۱۱۰ تا ۱۱۳۸۵۷ بایت (بدنه شامل «Object moved…» و **HTML کامل همان صفحه‌ای است که خروج از آن زده شد**)
+ • نکته: بدنه‌ی ۳۰۲ حاوی اطلاعات شخصی همان صفحه است؛ باید دور ریخته شود (نه پارس، نه لاگ، نه کش).
+ • فقط کوکی ASP.NET_SessionId پاک می‌شود؛ keyId و __AntiXsrfToken و accordianActiveIndex دست نمی‌خورند.
+
+بدنه‌ی خروج در چهار صفحه
+ Default      : ۵ فیلد ،  842 بایت ،  generator 79A64AFF ،  VS 704
+ Reservation  : ۱۲ فیلد (+ ردیف‌های تیک‌خورده) ، 40074 بایت ، generator 3ED98A75 ، VS 37292
+                فیلدهای اضافه: __LASTFOCUS=، ctl00$cphMain$hdnSelectedTab=css3-tabstrip-0-1، css3-tabstrip-0=on،
+                ctl00$cphMain$grdReservationLunch$ctlNN$chkReserve=on / $drpSelf=<id> / $drpFood=<id> / $drpFoodCount=<n>
+                (فقط برای ردیف‌های تیک‌خورده؛ مقادیر نمونه‌اند)
+ MyProfile    : ۵ فیلد ، 1848 بایت ، generator B57DACA3 ، VS 1644
+ MyMessage    : ۶ فیلد ، 3433 بایت ، generator 87AF9C2D ، VS 3116 ، فیلد اضافه: ctl00$cphMain$hdnId=
+ در همه‌ی آن‌ها طول __VIEWSTATE درخواست = طول __VIEWSTATE همان صفحه (مرورگر مقدار DOM را فرستاده است).
+
+چرخه‌ی کوکی بعد از هر خروج (طول مقدارها؛ خود مقدارها ثبت نشده)
+ خروج        → Set-Cookie: ASP.NET_SessionId= (خالی)
+ GET /Login  ← مرورگر ASP.NET_SessionId خالی می‌فرستد
+             → Set-Cookie: ASP.NET_SessionId=<۲۴ نویسه> (دو بار با همین نام؛ آخری معتبر)
+             → Set-Cookie: keyId=<۲۴ نویسه>; expires=<حدود ۲ دقیقه بعد از پاسخ>; path=/; secure; SameSite=None
+ POST /Login (موفق) → ۳۰۲ و بدون Set-Cookie؛ همان SessionId و keyId جدید ادامه می‌یابند.
+ __AntiXsrfToken در تمام چهار چرخه یکسان ماند (فقط در اولین GET داشبورد صادر شد).

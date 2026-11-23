@@ -39,6 +39,12 @@
 - **`Survey_flow_sanitized.txt`:** جدول زمانی کامل ضبط PCAPdroid از ورود، ریدایرکت `302` رزرو به نظرسنجی (همراه با پوسته ۲۳,۸۳۶ بایتی)، تلاش‌های ناموفق و موفق `toastify`، باز شدن رزرو و خروج.
 - **سند مرتبط:** [مهندسی معکوس نظرسنجی اجباری و دروازه رزرو](../02-reverse-engineering/mandatory-survey-and-gate.md).
 
+### ۷. فیکسچرهای خروج پویا از حساب کاربری (`Logout`)
+- **`Logout_Default_page_sanitized.html`:** HTML کامل صفحه‌ی داشبورد (`/Master/Default.aspx`) شامل فرم `MainForm`، لینک مشترک خروج `a#logout` با `javascript:__doPostBack('ctl00$logout','')`، مقدار `VIEWSTATEGENERATOR=79A64AFF` و منوی آکاردئونی صفحات؛ داده‌های شخصی با مقادیر ساختگی و توکن ViewState با `VIEWSTATE_PLACEHOLDER` جایگزین شده‌اند.
+- **`Logout_pages_comparison.json`:** جدول مقایسه‌ی ساختار فرم، کنترل‌های موفق بدنه، حجم بایتی و `__VIEWSTATEGENERATOR` اختصاصی در پنج صفحه‌ی `Default`، `Reservation`، `MyProfile`، `MyMessage` و `Survey_Answer`.
+- **`Logout_flow_sanitized.txt`:** ترتیب زمانی چهار خروج واقعی متوالی از صفحات مختلف، نمونه درخواست و پاسخ `302`، هشدار دور ریختن بدنه‌ی HTML پاسخ `302` و جزئیات چرخه‌ی کوکی (`ASP.NET_SessionId`، `keyId` با عمر حدود ۲ دقیقه و `__AntiXsrfToken`).
+- **سند مرتبط:** [خروج واقعی و پویا از سامانه کالینان](../02-reverse-engineering/server-logout-flow.md).
+
 ---
 
 ## 🔬 نحوه استفاده در کدهای تست پروژه
