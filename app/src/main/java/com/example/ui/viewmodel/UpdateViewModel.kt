@@ -34,7 +34,12 @@ class UpdateViewModel(
             _isChecking.value = true
             val result = updateRepository.checkForUpdate()
             result.onSuccess { info ->
-                if (info.isUpdateAvailable) {
+                if (!info.hasPublishedRelease) {
+                    AppLogger.logInfo("UpdateViewModel", "NoPublishedRelease", "No formal release published yet (current=${info.currentVersionName})")
+                    if (isManual) {
+                        _userMessage.value = "هنوز هیچ نسخه رسمی در مخزن گیت‌هاب منتشر نشده است (نسخه فعلی شما: ${info.currentVersionName})"
+                    }
+                } else if (info.isUpdateAvailable) {
                     _updateInfo.value = info
                     AppLogger.logInfo("UpdateViewModel", "UpdateAvailable", "New version ${info.latestVersionName} available (current=${info.currentVersionName})")
                 } else {

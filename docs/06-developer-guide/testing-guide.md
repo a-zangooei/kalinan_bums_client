@@ -59,7 +59,7 @@
 11. **`LoggingHardeningUnitTest.kt`، `AppLoggerSanitizerUnitTest.kt`، `ComprehensiveLoggingUnitTest.kt` و `LoggingIntegrationTest.kt`:**
     - تست پالایش گذرواژه، کوکی، داده‌های پروفایل و فیلدهای کپچا/OCR در `AppLogger` و `LogSanitizer`، ذخیره خام صفحات در `pageSnapshots`، ثبت کرش `FATAL` و ساخت آرشیو ZIP عیب‌یابی.
 12. **`UpdateRepositoryUnitTest.kt`، `KalinanUnitTests.kt`، `ExampleRobolectricTest.kt` و `ExampleUnitTest.kt`:**
-    - تست بررسی نسخه جدید از GitHub Releases، مدل‌های دامنه، متدهای کمکی رزرو و تست‌های پایه JVM/Robolectric.
+    - تست پیکربندی مخزن `a-zangooei/kalinan_bums_client`، شبیه‌سازی پاسخ‌های ۲۰۰/۴۰۴/۴۰۳ با `MockWebServer` و رفتار بررسی خودکار و دستی `UpdateViewModel`، مدل‌های دامنه، متدهای کمکی رزرو و تست‌های پایه JVM/Robolectric.
 
 ---
 

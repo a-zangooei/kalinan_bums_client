@@ -56,6 +56,15 @@ android {
     versionCode = buildVersionCode
     versionName = buildVersionName
 
+    val updateGithubOwner = (project.findProperty("updateGithubOwner")?.toString()
+        ?: System.getenv("UPDATE_GITHUB_OWNER")
+        ?: "a-zangooei").replace("\"", "\\\"")
+    val updateGithubRepo = (project.findProperty("updateGithubRepo")?.toString()
+        ?: System.getenv("UPDATE_GITHUB_REPO")
+        ?: "kalinan_bums_client").replace("\"", "\\\"")
+    buildConfigField("String", "UPDATE_GITHUB_OWNER", "\"$updateGithubOwner\"")
+    buildConfigField("String", "UPDATE_GITHUB_REPO", "\"$updateGithubRepo\"")
+
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
 

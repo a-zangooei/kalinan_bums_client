@@ -6,5 +6,6 @@ data class AppUpdateInfo(
     val currentVersionName: String,
     val downloadUrl: String,
     val changelogSnippet: String,
-    val publishedAt: String = ""
+    val publishedAt: String = "",
+    val hasPublishedRelease: Boolean = true
 )
