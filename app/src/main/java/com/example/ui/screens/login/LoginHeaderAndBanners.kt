@@ -1,7 +1,9 @@
 package com.example.ui.screens.login
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -53,64 +55,74 @@ import com.example.ui.theme.TealPrimary
 import com.example.ui.theme.TealPrimaryDark
 
 @Composable
-internal fun LoginTopSettingsAction(onOpenSettings: (() -> Unit)?) {
-    if (onOpenSettings == null) return
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.End
+internal fun LoginBrandingHeader(
+    onOpenSettings: (() -> Unit)? = null
+) {
+    val primaryColor = MaterialTheme.colorScheme.primary
+
+    Box(
+        modifier = Modifier.fillMaxWidth()
     ) {
-        IconButton(
-            onClick = onOpenSettings,
+        Box(
             modifier = Modifier
-                .minimumInteractiveComponentSize()
+                .align(Alignment.TopCenter)
+                .size(56.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f))
-                .testTag("login_settings_button")
+                .background(primaryColor.copy(alpha = 0.12f))
+                .padding(4.dp)
+                .clip(CircleShape)
+                .background(
+                    Brush.linearGradient(
+                        listOf(TealPrimary, TealPrimaryDark)
+                    )
+                ),
+            contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Default.Settings,
-                contentDescription = "تنظیمات برنامه",
-                tint = TealPrimary,
-                modifier = Modifier.size(22.dp)
+                imageVector = Icons.Default.RestaurantMenu,
+                contentDescription = "کالینان",
+                tint = AccentGold,
+                modifier = Modifier.size(26.dp)
             )
         }
-    }
-    Spacer(modifier = Modifier.height(8.dp))
-}
 
-@Composable
-internal fun LoginBrandingHeader() {
-    Box(
-        modifier = Modifier
-            .size(80.dp)
-            .clip(CircleShape)
-            .background(
-                Brush.linearGradient(
-                    listOf(TealPrimary, TealPrimaryDark)
+        if (onOpenSettings != null) {
+            IconButton(
+                onClick = onOpenSettings,
+                modifier = Modifier
+                    .align(Alignment.TopEnd)
+                    .minimumInteractiveComponentSize()
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.85f))
+                    .border(
+                        width = 1.dp,
+                        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.6f),
+                        shape = CircleShape
+                    )
+                    .testTag("login_settings_button")
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Settings,
+                    contentDescription = "تنظیمات برنامه",
+                    tint = primaryColor,
+                    modifier = Modifier.size(20.dp)
                 )
-            ),
-        contentAlignment = Alignment.Center
-    ) {
-        Icon(
-            imageVector = Icons.Default.RestaurantMenu,
-            contentDescription = "کالینان",
-            tint = AccentGold,
-            modifier = Modifier.size(44.dp)
-        )
+            }
+        }
     }
 
-    Spacer(modifier = Modifier.height(12.dp))
+    Spacer(modifier = Modifier.height(8.dp))
 
     Text(
         text = "سامانه تغذیه کالینان",
-        fontSize = 22.sp,
+        fontSize = 19.sp,
         fontWeight = FontWeight.ExtraBold,
-        color = MaterialTheme.colorScheme.primary
+        color = primaryColor
     )
 
     Text(
         text = "دانشگاه علوم پزشکی بیرجند",
-        fontSize = 14.sp,
+        fontSize = 12.sp,
         color = MaterialTheme.colorScheme.onSurfaceVariant,
         fontWeight = FontWeight.Medium
     )
@@ -118,53 +130,54 @@ internal fun LoginBrandingHeader() {
 
 @Composable
 internal fun ServerConnectionBadge(isCompatibilityModeActive: Boolean) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = TealPrimary.copy(alpha = 0.08f)
-        )
+    val statusColor = if (isCompatibilityModeActive) Color(0xFFE65100) else Color(0xFF2E7D32)
+    Surface(
+        shape = RoundedCornerShape(50),
+        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.88f),
+        border = BorderStroke(
+            width = 1.dp,
+            color = if (isCompatibilityModeActive) {
+                Color(0xFFE65100).copy(alpha = 0.35f)
+            } else {
+                MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.7f)
+            }
+        ),
+        tonalElevation = 1.dp
     ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Icon(
                 imageVector = Icons.Default.CloudQueue,
                 contentDescription = null,
-                tint = TealPrimary,
-                modifier = Modifier.size(20.dp)
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(14.dp)
             )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "اتصال مستقیم به سامانه تغذیه دانشگاه",
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = TealPrimary
-                )
-                Text(
-                    text = "https://jeton.bums.ac.ir",
-                    fontSize = 11.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            if (isCompatibilityModeActive) {
-                Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = Color(0xFFFFF3E0)
-                ) {
-                    Text(
-                        text = "اعتبارسنجی گواهی غیرفعال",
-                        fontSize = 10.sp,
-                        color = Color(0xFFE65100),
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
-                    )
-                }
-            }
+            Text(
+                text = "jeton.bums.ac.ir",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = "•",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.outline
+            )
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(statusColor)
+            )
+            Text(
+                text = if (isCompatibilityModeActive) "حالت سازگاری SSL" else "اتصال امن",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = statusColor
+            )
         }
     }
 }

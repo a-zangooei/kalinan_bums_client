@@ -8,6 +8,7 @@ import androidx.compose.animation.core.animateFloat
 import androidx.compose.animation.core.infiniteRepeatable
 import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.tween
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -118,14 +119,17 @@ internal fun LoginCredentialsCard(
     val captchaFocusRequester = remember { FocusRequester() }
     val focusManager = LocalFocusManager.current
 
+    val primaryColor = MaterialTheme.colorScheme.primary
+
     Card(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.55f)),
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             // Biometric / Device PIN unlock button when saved credentials are locked
@@ -134,7 +138,7 @@ internal fun LoginCredentialsCard(
                     onClick = onBiometricUnlockClick,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 14.dp)
+                        .padding(bottom = 10.dp)
                         .heightIn(min = 48.dp)
                         .testTag("biometric_unlock_button"),
                     shape = RoundedCornerShape(14.dp)
@@ -142,15 +146,15 @@ internal fun LoginCredentialsCard(
                     Icon(
                         imageVector = Icons.Default.Fingerprint,
                         contentDescription = null,
-                        tint = TealPrimary,
-                        modifier = Modifier.size(22.dp)
+                        tint = primaryColor,
+                        modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         text = "بازیابی رمز عبور با اثر انگشت یا قفل دستگاه",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TealPrimary
+                        color = primaryColor
                     )
                 }
             }
@@ -161,7 +165,7 @@ internal fun LoginCredentialsCard(
                     onClick = onQuickFillSavedCredentials,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(bottom = 14.dp)
+                        .padding(bottom = 10.dp)
                         .heightIn(min = 48.dp)
                         .testTag("quick_fill_saved_credentials_button"),
                     shape = RoundedCornerShape(14.dp)
@@ -169,7 +173,7 @@ internal fun LoginCredentialsCard(
                     Icon(
                         imageVector = Icons.Default.Person,
                         contentDescription = null,
-                        tint = TealPrimary,
+                        tint = primaryColor,
                         modifier = Modifier.size(20.dp)
                     )
                     Spacer(modifier = Modifier.width(8.dp))
@@ -177,7 +181,7 @@ internal fun LoginCredentialsCard(
                         text = "تکمیل خودکار اطلاعات ورود ذخیره‌شده",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.Bold,
-                        color = TealPrimary
+                        color = primaryColor
                     )
                 }
             }
@@ -214,12 +218,12 @@ internal fun LoginCredentialsCard(
                     .testTag("username_input"),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = TealPrimary,
-                    focusedLabelColor = TealPrimary
+                    focusedBorderColor = primaryColor,
+                    focusedLabelColor = primaryColor
                 )
             )
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Password Field (strict password keyboard, non-autocorrect, semantics)
             OutlinedTextField(
@@ -276,12 +280,12 @@ internal fun LoginCredentialsCard(
                     .testTag("password_input"),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = TealPrimary,
-                    focusedLabelColor = TealPrimary
+                    focusedBorderColor = primaryColor,
+                    focusedLabelColor = primaryColor
                 )
             )
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Captcha Box & Refresh Row
             Row(
@@ -292,7 +296,7 @@ internal fun LoginCredentialsCard(
                 Box(
                     modifier = Modifier
                         .weight(1f)
-                        .height(54.dp)
+                        .height(48.dp)
                         .clip(RoundedCornerShape(12.dp))
                         .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
                         .background(Color(0xFFF5F7FA)),
@@ -304,13 +308,13 @@ internal fun LoginCredentialsCard(
                             contentDescription = "تصویر کد امنیتی",
                             modifier = Modifier
                                 .fillMaxSize()
-                                .padding(4.dp)
+                                .padding(3.dp)
                         )
                     } else if (isLoading || isCaptchaRefreshing) {
                         CircularProgressIndicator(
-                            modifier = Modifier.size(24.dp),
+                            modifier = Modifier.size(22.dp),
                             strokeWidth = 2.dp,
-                            color = TealPrimary
+                            color = primaryColor
                         )
                     } else {
                         TextButton(
@@ -320,7 +324,7 @@ internal fun LoginCredentialsCard(
                             Text(
                                 text = "دریافت کد امنیتی",
                                 fontSize = 11.sp,
-                                color = TealPrimary,
+                                color = primaryColor,
                                 fontWeight = FontWeight.Medium
                             )
                         }
@@ -343,7 +347,7 @@ internal fun LoginCredentialsCard(
                 IconButton(
                     onClick = onRefreshCaptcha,
                     modifier = Modifier
-                        .size(50.dp)
+                        .size(48.dp)
                         .clip(CircleShape)
                         .background(MaterialTheme.colorScheme.surfaceVariant)
                         .testTag("refresh_captcha_button")
@@ -351,13 +355,13 @@ internal fun LoginCredentialsCard(
                     Icon(
                         imageVector = Icons.Default.Refresh,
                         contentDescription = "دریافت مجدد کد امنیتی",
-                        tint = TealPrimary,
+                        tint = primaryColor,
                         modifier = Modifier.rotate(if (isCaptchaRefreshing) rotation else 0f)
                     )
                 }
             }
 
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Captcha Input Field
             OutlinedTextField(
@@ -409,8 +413,8 @@ internal fun LoginCredentialsCard(
                     .testTag("captcha_input"),
                 shape = RoundedCornerShape(14.dp),
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = TealPrimary,
-                    focusedLabelColor = TealPrimary
+                    focusedBorderColor = primaryColor,
+                    focusedLabelColor = primaryColor
                 )
             )
 
@@ -422,7 +426,7 @@ internal fun LoginCredentialsCard(
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(start = 4.dp, top = 6.dp),
+                        .padding(start = 4.dp, top = 4.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     when {
@@ -447,7 +451,7 @@ internal fun LoginCredentialsCard(
                                     .size(14.dp)
                                     .testTag("captcha_solving_indicator"),
                                 strokeWidth = 2.dp,
-                                color = TealPrimary
+                                color = primaryColor
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
@@ -460,7 +464,7 @@ internal fun LoginCredentialsCard(
                             Icon(
                                 imageVector = Icons.Default.CheckCircle,
                                 contentDescription = null,
-                                tint = TealPrimary,
+                                tint = primaryColor,
                                 modifier = Modifier.size(14.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
@@ -468,7 +472,7 @@ internal fun LoginCredentialsCard(
                                 text = "پر شده خودکار",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Medium,
-                                color = TealPrimary,
+                                color = primaryColor,
                                 modifier = Modifier.testTag("captcha_auto_filled_badge")
                             )
                         }
@@ -476,7 +480,7 @@ internal fun LoginCredentialsCard(
                 }
             }
 
-            Spacer(modifier = Modifier.height(10.dp))
+            Spacer(modifier = Modifier.height(4.dp))
 
             // Remember Me Checkbox (Disabled when encryption unavailable)
             Row(
@@ -515,7 +519,7 @@ internal fun LoginCredentialsCard(
                 )
             }
 
-            Spacer(modifier = Modifier.height(18.dp))
+            Spacer(modifier = Modifier.height(8.dp))
 
             // Submit Login Button
             Button(
@@ -523,23 +527,25 @@ internal fun LoginCredentialsCard(
                 enabled = !isLoading,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
+                    .height(48.dp)
                     .testTag("login_button"),
                 shape = RoundedCornerShape(14.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = TealPrimary)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = primaryColor,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) {
                 if (isLoading) {
                     CircularProgressIndicator(
-                        color = Color.White,
-                        modifier = Modifier.size(24.dp),
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier.size(22.dp),
                         strokeWidth = 2.5.dp
                     )
                 } else {
                     Text(
                         text = "ورود به سامانه",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }

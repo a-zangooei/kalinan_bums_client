@@ -8,11 +8,18 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.provider.Settings
 import android.widget.Toast
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.MaterialTheme
@@ -24,6 +31,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -40,7 +50,6 @@ import com.example.ui.screens.login.EncryptionUnavailableBanner
 import com.example.ui.screens.login.LoginBrandingHeader
 import com.example.ui.screens.login.LoginCredentialsCard
 import com.example.ui.screens.login.LoginErrorBanner
-import com.example.ui.screens.login.LoginTopSettingsAction
 import com.example.ui.screens.login.ServerConnectionBadge
 import com.example.ui.theme.CullinanTheme
 import com.example.ui.viewmodel.AuthViewModel
@@ -175,68 +184,104 @@ internal fun LoginScreenContent(
     isCaptchaAutoFilled: Boolean = false,
     captchaSoftMessage: String? = null
 ) {
+    val colorScheme = MaterialTheme.colorScheme
+    val backgroundColor = colorScheme.background
+    val topGlowColor = colorScheme.primaryContainer.copy(alpha = 0.55f)
+    val accentGlowColor = colorScheme.primary.copy(alpha = 0.08f)
+
     PersianRtlLayout {
         Surface(
             modifier = modifier.fillMaxSize(),
-            color = MaterialTheme.colorScheme.background
+            color = backgroundColor
         ) {
-            Column(
+            BoxWithConstraints(
                 modifier = Modifier
                     .fillMaxSize()
-                    .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
+                    .drawBehind {
+                        drawRect(
+                            brush = Brush.verticalGradient(
+                                colors = listOf(topGlowColor, backgroundColor),
+                                startY = 0f,
+                                endY = size.height * 0.45f
+                            )
+                        )
+                        drawCircle(
+                            brush = Brush.radialGradient(
+                                colors = listOf(accentGlowColor, backgroundColor.copy(alpha = 0f)),
+                                center = Offset(size.width * 0.5f, size.height * 0.14f),
+                                radius = size.width * 0.65f
+                            ),
+                            radius = size.width * 0.65f,
+                            center = Offset(size.width * 0.5f, size.height * 0.14f)
+                        )
+                    }
+                    .safeDrawingPadding()
+                    .imePadding()
             ) {
-                LoginTopSettingsAction(onOpenSettings = onOpenSettings)
+                val scrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(min = maxHeight)
+                        .verticalScroll(scrollState)
+                        .padding(horizontal = 20.dp, vertical = 10.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .widthIn(max = 460.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        LoginBrandingHeader(onOpenSettings = onOpenSettings)
 
-                LoginBrandingHeader()
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                Spacer(modifier = Modifier.height(20.dp))
+                        ServerConnectionBadge(isCompatibilityModeActive = isCompatibilityModeActive)
 
-                ServerConnectionBadge(isCompatibilityModeActive = isCompatibilityModeActive)
+                        Spacer(modifier = Modifier.height(12.dp))
 
-                Spacer(modifier = Modifier.height(12.dp))
+                        EncryptionUnavailableBanner(visible = !isEncryptionAvailable)
 
-                EncryptionUnavailableBanner(visible = !isEncryptionAvailable)
+                        BiometricUnavailableLockedBanner(
+                            visible = biometricUnavailableWhileLocked && isEncryptionAvailable,
+                            onOpenSecuritySettings = onOpenDeviceSecuritySettings,
+                            onClearSavedCredentials = onClearLockedSavedCredentials
+                        )
 
-                BiometricUnavailableLockedBanner(
-                    visible = biometricUnavailableWhileLocked && isEncryptionAvailable,
-                    onOpenSecuritySettings = onOpenDeviceSecuritySettings,
-                    onClearSavedCredentials = onClearLockedSavedCredentials
-                )
+                        LoginErrorBanner(
+                            errorMessage = errorMessage,
+                            onRetryConnection = onRetryConnection
+                        )
 
-                LoginErrorBanner(
-                    errorMessage = errorMessage,
-                    onRetryConnection = onRetryConnection
-                )
-
-                LoginCredentialsCard(
-                    username = username,
-                    password = password,
-                    passwordVisible = passwordVisible,
-                    captchaInput = captchaInput,
-                    captchaBitmap = captchaBitmap,
-                    rememberMe = rememberMe,
-                    isEncryptionAvailable = isEncryptionAvailable,
-                    requiresBiometricUnlock = requiresBiometricUnlock,
-                    canQuickFillSavedCredentials = canQuickFillSavedCredentials,
-                    isLoading = isLoading,
-                    isCaptchaRefreshing = isCaptchaRefreshing,
-                    onBiometricUnlockClick = onBiometricUnlockClick,
-                    onQuickFillSavedCredentials = onQuickFillSavedCredentials,
-                    onUsernameChange = onUsernameChange,
-                    onPasswordChange = onPasswordChange,
-                    onTogglePasswordVisibility = onTogglePasswordVisibility,
-                    onCaptchaChange = onCaptchaChange,
-                    onRefreshCaptcha = onRefreshCaptcha,
-                    onToggleRememberMe = onToggleRememberMe,
-                    onSubmitLogin = onSubmitLogin,
-                    isSolvingCaptcha = isSolvingCaptcha,
-                    isCaptchaAutoFilled = isCaptchaAutoFilled,
-                    captchaSoftMessage = captchaSoftMessage
-                )
-
-                Spacer(modifier = Modifier.height(16.dp))
+                        LoginCredentialsCard(
+                            username = username,
+                            password = password,
+                            passwordVisible = passwordVisible,
+                            captchaInput = captchaInput,
+                            captchaBitmap = captchaBitmap,
+                            rememberMe = rememberMe,
+                            isEncryptionAvailable = isEncryptionAvailable,
+                            requiresBiometricUnlock = requiresBiometricUnlock,
+                            canQuickFillSavedCredentials = canQuickFillSavedCredentials,
+                            isLoading = isLoading,
+                            isCaptchaRefreshing = isCaptchaRefreshing,
+                            onBiometricUnlockClick = onBiometricUnlockClick,
+                            onQuickFillSavedCredentials = onQuickFillSavedCredentials,
+                            onUsernameChange = onUsernameChange,
+                            onPasswordChange = onPasswordChange,
+                            onTogglePasswordVisibility = onTogglePasswordVisibility,
+                            onCaptchaChange = onCaptchaChange,
+                            onRefreshCaptcha = onRefreshCaptcha,
+                            onToggleRememberMe = onToggleRememberMe,
+                            onSubmitLogin = onSubmitLogin,
+                            isSolvingCaptcha = isSolvingCaptcha,
+                            isCaptchaAutoFilled = isCaptchaAutoFilled,
+                            captchaSoftMessage = captchaSoftMessage
+                        )
+                    }
+                }
             }
         }
     }

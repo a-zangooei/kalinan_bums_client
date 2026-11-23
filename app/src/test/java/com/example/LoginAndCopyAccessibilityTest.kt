@@ -1,13 +1,17 @@
 package com.example
 
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.test.ExperimentalTestApi
 import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsFocused
+import androidx.compose.ui.test.getUnclippedBoundsInRoot
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import androidx.compose.ui.test.onNodeWithText
@@ -16,6 +20,7 @@ import androidx.compose.ui.test.performImeAction
 import androidx.compose.ui.test.performKeyInput
 import androidx.compose.ui.test.performScrollTo
 import androidx.compose.ui.test.pressKey
+import androidx.compose.ui.unit.dp
 import com.example.ui.screens.LoginScreenContent
 import com.example.ui.screens.menu.StudentProfileDialog
 import com.example.ui.theme.CullinanTheme
@@ -161,5 +166,62 @@ class LoginAndCopyAccessibilityTest {
 
         composeRule.onNodeWithText("شناسه کاربری").assertIsDisplayed()
         composeRule.onNodeWithText("شماره دانشجویی", substring = true).assertDoesNotExist()
+    }
+
+    @Test
+    @Config(qualifiers = "w390dp-h844dp-xhdpi")
+    fun loginScreen_defaultStateFitsStandardPhoneViewportWithoutScrolling() {
+        composeRule.setContent {
+            CullinanTheme(darkTheme = false) {
+                Box(modifier = Modifier.size(width = 360.dp, height = 680.dp)) {
+                    LoginScreenContent(
+                        username = "",
+                        password = "",
+                        passwordVisible = false,
+                        captchaInput = "",
+                        captchaBitmap = null,
+                        rememberMe = false,
+                        isEncryptionAvailable = true,
+                        requiresBiometricUnlock = false,
+                        biometricUnavailableWhileLocked = false,
+                        canQuickFillSavedCredentials = false,
+                        isLoading = false,
+                        isCaptchaRefreshing = false,
+                        errorMessage = null,
+                        isCompatibilityModeActive = false,
+                        onOpenSettings = {},
+                        onOpenDeviceSecuritySettings = {},
+                        onClearLockedSavedCredentials = {},
+                        onRetryConnection = {},
+                        onBiometricUnlockClick = {},
+                        onQuickFillSavedCredentials = {},
+                        onUsernameChange = {},
+                        onPasswordChange = {},
+                        onTogglePasswordVisibility = {},
+                        onCaptchaChange = {},
+                        onRefreshCaptcha = {},
+                        onToggleRememberMe = {},
+                        onSubmitLogin = {}
+                    )
+                }
+            }
+        }
+
+        // Verify all key controls fit visibly inside the 360x680dp viewport without calling performScrollTo()
+        composeRule.onNodeWithTag("login_settings_button").assertIsDisplayed()
+        composeRule.onNodeWithText("سامانه تغذیه کالینان").assertIsDisplayed()
+        composeRule.onNodeWithText("jeton.bums.ac.ir").assertIsDisplayed()
+        composeRule.onNodeWithTag("username_input").assertIsDisplayed()
+        composeRule.onNodeWithTag("password_input").assertIsDisplayed()
+        composeRule.onNodeWithTag("refresh_captcha_button").assertIsDisplayed()
+        composeRule.onNodeWithTag("captcha_input").assertIsDisplayed()
+        composeRule.onNodeWithTag("remember_me_checkbox").assertIsDisplayed()
+        composeRule.onNodeWithTag("login_button").assertIsDisplayed()
+
+        val buttonBounds = composeRule.onNodeWithTag("login_button").getUnclippedBoundsInRoot()
+        assertTrue(
+            "Expected login button bottom (${buttonBounds.bottom}) to fit within 680.dp viewport",
+            buttonBounds.bottom <= 680.dp
+        )
     }
 }
