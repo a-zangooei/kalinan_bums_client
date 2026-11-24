@@ -45,6 +45,16 @@
 - **`Logout_flow_sanitized.txt`:** ترتیب زمانی چهار خروج واقعی متوالی از صفحات مختلف، نمونه درخواست و پاسخ `302`، هشدار دور ریختن بدنه‌ی HTML پاسخ `302` و جزئیات چرخه‌ی کوکی (`ASP.NET_SessionId`، `keyId` با عمر حدود ۲ دقیقه و `__AntiXsrfToken`).
 - **سند مرتبط:** [خروج واقعی و پویا از سامانه کالینان](../02-reverse-engineering/server-logout-flow.md).
 
+### ۸. فیکسچرهای «سبد غذایی و فروش/حذف از سبد» (`FoodBasketSale.aspx`)
+- **`FoodBasketSale_page_sanitized.html`:** HTML کامل پاسخ سرور برای `GET /FoodBasket/FoodBasketSale.aspx` (فرم اولیه بدون `#cphMain_fldsetResult`، دارای `#cphMain_txtDate`، `#cphMain_drpReserveType`، `#cphMain_drpFoodType`، `#cphMain_btnFoodReload` و `__VIEWSTATEGENERATOR=92079A9C`).
+- **`FoodBasket_reload_delta_sanitized.txt`:** پاسخ Delta عملیات «بارگذاری غذا» (`btnFoodReload`) با `hdnReservationId=1234567`، وضعیت «این غذا رزرو شده است» و دکمه‌ی `btnAccept` («فروش به سبد غذا»).
+- **`FoodBasket_sell_delta_sanitized.txt`:** پاسخ Delta عملیات «فروش به سبد غذا» (`btnAccept`) با اسکریپت `toastify('success', 'این غذا به سبد غذایی جهت فروش اضافه شد', ...)`، دکمه‌ی `btnCancel` و نمونه‌ی واقعی **برچسب وضعیت کهنه** («این غذا رزرو شده است»).
+- **`FoodBasket_reload_after_sell_delta_sanitized.txt`:** پاسخ Delta بارگذاری دوباره بعد از فروش با وضعیت به‌روزشده («این غذا در سبد غذایی برای فروش قرار دارد») و دکمه‌ی `btnCancel`.
+- **`FoodBasket_cancel_delta_sanitized.txt`:** پاسخ Delta عملیات «حذف از سبد غذا» (`btnCancel`) با اسکریپت `toastify('success', 'این غذا از سبد غذایی حذف شد', ...)`، بازگشت دکمه به `btnAccept` و نمونه‌ی واقعی **برچسب وضعیت کهنه** در جهت معکوس («این غذا در سبد غذایی برای فروش قرار دارد»).
+- **`FoodBasket_reload_after_cancel_delta_sanitized.txt`:** پاسخ Delta بارگذاری دوباره بعد از حذف با بازگشت کامل به وضعیت «این غذا رزرو شده است» و دکمه‌ی `btnAccept` با همان `hdnReservationId` ثابت.
+- **`FoodBasket_flow_sanitized.txt`:** جدول زمانی، هدرها و بدنه‌ی همه‌ی درخواست‌های هر دو ضبط PCAPdroid (شامل ۱۱ و ۱۲ فیلدی بارگذاری، ۱۲ فیلدی فروش و حذف، بررسی `Reservation.aspx` و خروج ۹ فیلدی).
+- **سند مرتبط:** [مهندسی معکوس «سبد غذایی»، «فروش به سبد غذایی» و «حذف از سبد»](../02-reverse-engineering/food-basket-and-sale.md).
+
 ---
 
 ## 🔬 نحوه استفاده در کدهای تست پروژه

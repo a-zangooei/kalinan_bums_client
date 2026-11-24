@@ -1,0 +1,72 @@
+1|#||4|3325|updatePanel|UpdatePanel1|
+                        
+    <div id="cphMain_alertBox" class="alertBox" style="display:none;">
+        <label id="cphMain_alertBoxValue">
+        </label>
+        <div class="topClose">
+            <img src="../Images/Style/esc.png" />
+        </div>
+    </div>
+    <fieldset>
+        <legend>تعیین بازه زمانی و وعده غذایی</legend>
+        <div class="box">
+            <label id="cphMain_lblFrom">
+                تاریخ</label>
+            <input name="ctl00$cphMain$txtDate" type="text" id="cphMain_txtDate" class="t3" required="" pattern="((0[1-9]|[12][0-9]|3[01])[- /.](0[1-9]|1[012])[- /.](1)\d\d\d|(1)\d\d\d[- /.](0[1-9]|1[012])[- /.](0[1-9]|[12][0-9]|3[01]))" oninvalid="InvalidMsg(this);" oninput="InvalidMsg(this);" value="1405/09/03" />
+        </div>
+        <div class="box" style="clear: both;">
+            <label for="test">
+                نوع رزرو</label>
+            <select name="ctl00$cphMain$drpReserveType" id="cphMain_drpReserveType">
+	<option selected="selected" value="0">رزرو هفتگی</option>
+	<option value="1">روزفروش</option>
+
+</select>
+        </div>
+        <div class="box">
+            <label for="test">
+                وعده غذایی</label>
+            <select name="ctl00$cphMain$drpFoodType" id="cphMain_drpFoodType">
+	<option value="1">صبحانه</option>
+	<option selected="selected" value="2">ناهار</option>
+	<option value="3">شام</option>
+
+</select>
+        </div>
+        <div style="clear: both;">
+            <input name="ctl00$cphMain$btnFoodReload" type="submit" id="cphMain_btnFoodReload" value="بارگذاری غذا" />
+        </div>
+    </fieldset>
+    <fieldset id="cphMain_fldsetResult">
+        <input name="ctl00$cphMain$hdnReservationId" type="hidden" id="cphMain_hdnReservationId" value="1234567" />
+        <div class="box" style="width: 100%;">
+            <label style="width: 200px;">وضعیت:</label>
+            <label id="cphMain_lblStatus" style="width: 300px; text-align: right;">این غذا رزرو شده است</label>
+        </div>
+        <div class="box" style="width: 100%;">
+            <label style="width: 200px;">نام غذا:</label>
+            <label id="cphMain_lblFood" style="width: 200px; text-align: right;">نام غذای نمونه</label>
+        </div>
+        <div class="box" style="width: 100%;">
+            <label style="width: 200px;">سلف:</label>
+            <label id="cphMain_lblSelf" style="width: 200px; text-align: right;">سلف نمونه</label>
+        </div>
+        <div class="box" style="width: 100%;">
+            <label style="width: 200px;">تعداد:</label>
+            <label id="cphMain_lblFoodcount" style="width: 200px; text-align: right;">1</label>
+        </div>
+        <div class="box" style="width: 100%;">
+            <label style="width: 200px;">قیمت رزرو غذا:</label>
+            <label id="cphMain_lblReservePrice" style="width: 200px; text-align: right;">180,000 ریال</label>
+        </div>
+        <div class="box" style="width: 100%;">
+            <label style="width: 200px;">قیمت فروش به سبد:</label>
+            <label id="cphMain_lblBasketSalePrice" style="width: 200px; text-align: right;">180,000 ریال</label>
+        </div>
+        <div style="clear: both;">
+            <input name="ctl00$cphMain$btnAccept" type="submit" id="cphMain_btnAccept" value="فروش به سبد غذا" />
+            
+        </div>
+    </fieldset>
+
+                    |0|hiddenField|__EVENTTARGET||0|hiddenField|__EVENTARGUMENT||1176|hiddenField|__VIEWSTATE|VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_PLACEHOLDER_VIEWSTATE_|8|hiddenField|__VIEWSTATEGENERATOR|92079A9C|0|hiddenField|__VIEWSTATEENCRYPTED||0|asyncPostBackControlIDs|||0|postBackControlIDs|||32|updatePanelIDs||tctl00$UpdatePanel1,UpdatePanel1|0|childUpdatePanelIDs|||31|panelsToRefreshIDs||ctl00$UpdatePanel1,UpdatePanel1|3|asyncPostBackTimeout||400|21|formAction||./FoodBasketSale.aspx|

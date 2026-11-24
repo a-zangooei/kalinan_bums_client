@@ -12,10 +12,10 @@
 | بخش | سرفصل | موضوع و محتوا |
 |:---:|---|---|
 | **۰۱** | [**معماری نرم‌افزار**](./01-architecture/overview.md)، [**پشته فناوری**](./01-architecture/tech-stack.md) و [**کپچای اختیاری روی دستگاه**](./01-architecture/captcha-on-device.md) | الگوهای طراحی MVVM، معماری پاک، جریان یک‌طرفه داده (UDF)، پشته فناوری و مستندات ممیزی/عملکرد تشخیص اختیاری کپچا روی دستگاه |
-| **۰۲** | [**مهندسی معکوس ASP.NET**](./02-reverse-engineering/aspnet-protocol.md)، [**رزرو و ناوبری هفته**](./02-reverse-engineering/meal-reservation-api.md)، [**خروج سرور و الگوی پویا**](./02-reverse-engineering/server-logout-flow.md)، [**پیام‌های خوانده‌نشده و قفل منو**](./02-reverse-engineering/unread-messages-and-menu-lock.md)، [**پروفایل من و تصویر کاربر**](./02-reverse-engineering/my-profile-and-user-image.md) و [**نظرسنجی اجباری و دروازه رزرو**](./02-reverse-engineering/mandatory-survey-and-gate.md) | تحلیل عمیق پروتکل وب‌فرم‌های کلاسیک مایکروسافت، احراز هویت، جابه‌جایی هفته‌ها، پیام‌های خوانده‌نشده و صفحه‌بندی، دروازه `302` نظرسنجی اجباری (`Survey_Answer.aspx`) و فرم ۲۷ پرسشی، ساختار و فیلدهای `MyProfile.aspx` و `UserImage.ashx`، ابطال نشست سرور و الگوریتم خروج پویا در چهار صفحه (`Default`/`Reservation`/`MyProfile`/`MyMessage`)، چرخه‌ی `keyId`، رمزنگاری RSA و فریم‌های UpdatePanel |
+| **۰۲** | [**مهندسی معکوس ASP.NET**](./02-reverse-engineering/aspnet-protocol.md)، [**رزرو و ناوبری هفته**](./02-reverse-engineering/meal-reservation-api.md)، [**خروج سرور و الگوی پویا**](./02-reverse-engineering/server-logout-flow.md)، [**پیام‌های خوانده‌نشده و قفل منو**](./02-reverse-engineering/unread-messages-and-menu-lock.md)، [**پروفایل من و تصویر کاربر**](./02-reverse-engineering/my-profile-and-user-image.md)، [**نظرسنجی اجباری و دروازه رزرو**](./02-reverse-engineering/mandatory-survey-and-gate.md) و [**سبد غذایی و فروش/حذف**](./02-reverse-engineering/food-basket-and-sale.md) | تحلیل عمیق پروتکل وب‌فرم‌های کلاسیک مایکروسافت، احراز هویت، جابه‌جایی هفته‌ها، پیام‌های خوانده‌نشده و صفحه‌بندی، دروازه `302` نظرسنجی اجباری (`Survey_Answer.aspx`) و فرم ۲۷ پرسشی، ساختار و فیلدهای `MyProfile.aspx` و `UserImage.ashx`، صفحه‌ی «فروش به سبد غذایی» (`FoodBasketSale.aspx`: بارگذاری، فروش، حذف، تله‌ی برچسب کهنه و نمای کلی `FoodBasketBuy`)، ابطال نشست سرور و الگوریتم خروج پویا، چرخه‌ی `keyId`، رمزنگاری RSA و فریم‌های UpdatePanel |
 | **۰۳** | [**ممیزی SSL، زنجیره گواهی و وضعیت فعلی Fallback**](./03-security-and-ssl/ssl-certificate-chain.md) | داده‌های واقعی سرور `jeton.bums.ac.ir`، علت نبود ریشه Certum در برخی دستگاه‌ها، توضیح شفاف درباره وضعیت فعلی بدون اعتبارسنجی گواهی (ریسک MITM) و طرح اصلاح آتی |
 | **۰۴** | [**خط لوله CI/CD و انتشار**](./04-ci-cd-and-release/github-actions.md) | پایپ‌لاین‌های GitHub Actions، اجرای تست‌های واحد/Robolectric آفلاین پیش از بیلد، بیلد و پیش‌انتشار غلتان دیباگ، همگام‌سازی خودکار ویکی و انتشار امضاشده رسمی |
-| **۰۵** | [**نمونه‌های ترافیک شبکه (Fixtures)**](./05-samples-and-fixtures/README.md) | نمونه‌های پاک‌سازی‌شده ترافیک سرور دانشگاه (`har_entry*.txt`، `MyProfile_*_sanitized`، فیکسچرهای ۵گانه `Survey_*` و فیکسچرهای خروج پویا `Logout_*`) و راهنمای تست‌های واحد |
+| **۰۵** | [**نمونه‌های ترافیک شبکه (Fixtures)**](./05-samples-and-fixtures/README.md) | نمونه‌های پاک‌سازی‌شده ترافیک سرور دانشگاه (`har_entry*.txt`، `MyProfile_*_sanitized`، فیکسچرهای ۵گانه `Survey_*`، فیکسچرهای خروج پویا `Logout_*` و فیکسچرهای ۷گانه `FoodBasket*`) و راهنمای تست‌های واحد |
 | **۰۶** | [**راهنمای توسعه و آزمون‌ها**](./06-developer-guide/getting-started.md) | راهنمای راه‌اندازی سریع در محیط‌های محلی، قوانین کامپایل، فهرست ۲۷ سوئیت تست (`testing-guide.md`) و استانداردهای مشارکت |
 
 ---
@@ -62,6 +62,10 @@
 │  │- RSA Key     │ │- Paged Grid  │ │- UpdatePanel1 │ │& UserImage│ │302   │ │
 │  │- __VIEWSTATE │ │- Delta Open  │ │- Delta Frames │ │- GET Only │ │Gate  │ │
 │  └──────────────┘ └──────────────┘ └───────────────┘ └───────────┘ └──────┘ │
+│  ┌────────────────────────────────────────────────────────────────────────┐ │
+│  │ FoodBasketSale.aspx (مستندسازی‌شده؛ در انتظار پیاده‌سازی در کلاینت)   │ │
+│  │ - UpdatePanel1 Delta: btnFoodReload / btnAccept / btnCancel            │ │
+│  └────────────────────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────────────────┘
 ```
 

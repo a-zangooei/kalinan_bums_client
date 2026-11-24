@@ -36,12 +36,13 @@
 | ۲ | رزرو (`/Reservation/Reservation.aspx`) | `./Reservation.aspx` | `3ED98A75` | ۳۷۲۹۲ | ۱۲+ / ۴۰۰۷۴ | `__LASTFOCUS`، `ctl00$cphMain$hdnSelectedTab`، `css3-tabstrip-0=on`، و برای هر ردیف تیک‌خورده: `chkReserve`، `drpSelf`، `drpFood`، `drpFoodCount` |
 | ۳ | پروفایل من (`/MyCullinan/MyProfile.aspx`) | `./MyProfile.aspx` | `B57DACA3` | ۱۶۴۴ | ۵ / ۱۸۴۸ | — |
 | ۴ | پیام‌ها (`/MyCullinan/MyMessage.aspx`) | `./MyMessage.aspx` | `87AF9C2D` | ۳۱۱۶ | ۶ / ۳۴۳۳ | `ctl00$cphMain$hdnId=` (مقدار خالی) |
-| ۵ | نظرسنجی (`/Survey/Survey_Answer.aspx`) *(ضبط‌نشده)* | `./Survey_Answer.aspx` | `4D6A1972` | ۱۵۱۶ | — | لینک `a#logout` در HTML صفحه موجود است `[اندازه‌گیری]`؛ خروج از آن ضبط نشده `[تأییدنشده]` |
+| ۵ | فروش به سبد غذایی (`/FoodBasket/FoodBasketSale.aspx`) | `./FoodBasketSale.aspx` | `92079A9C` | ۱۲۱۶ *(پس از Delta)* | ۹ / ۱۵۳۹ | `txtDate`، `drpReserveType`، `drpFoodType`، `hdnReservationId` (`[اندازه‌گیری]`؛ [جزئیات](./food-basket-and-sale.md)) |
+| ۶ | نظرسنجی (`/Survey/Survey_Answer.aspx`) *(ضبط‌نشده)* | `./Survey_Answer.aspx` | `4D6A1972` | ۱۵۱۶ | — | لینک `a#logout` در HTML صفحه موجود است `[اندازه‌گیری]`؛ خروج از آن ضبط نشده `[تأییدنشده]` |
 
-- در هر چهار مورد ضبط‌شده، طول `__VIEWSTATE` ارسالی دقیقاً برابر طول `__VIEWSTATE` در DOM همان صفحه بود (مرورگر مقدار فعلی صفحه را ارسال کرده است). `[اندازه‌گیری]`
-- هیچ‌کدام از چهار صفحه `__EVENTVALIDATION` نداشتند؛ بااین‌حال در الگوریتم عمومی، در صورت وجود این فیلد در هر صفحه‌ی دیگر باید همراه بدنه ارسال شود. `[تأییدنشده]`
+- در تمامی موارد ضبط‌شده، طول `__VIEWSTATE` ارسالی دقیقاً برابر طول `__VIEWSTATE` فعلی صفحه (HTML یا آخرین Delta) بود (مرورگر مقدار فعلی DOM را ارسال کرده است). `[اندازه‌گیری]`
+- هیچ‌کدام از این پنج صفحه (۴ صفحه‌ی اول + `FoodBasketSale.aspx`) `__EVENTVALIDATION` نداشتند؛ بااین‌حال در الگوریتم عمومی، در صورت وجود این فیلد در هر صفحه‌ی دیگر باید همراه بدنه ارسال شود. `[اندازه‌گیری]` / `[تأییدنشده]`
 - در صفحه‌ی رزرو، ردیف‌های تیک‌خورده و انتخاب‌های فرم صرفاً به‌دلیل رفتار استاندارد مرورگر در ارسال همه‌ی کنترل‌های موفق به سرور فرستاده می‌شوند و **خروج تغییری در رزروها ذخیره نمی‌کند** (رویداد `ctl00$logout` است نه دکمه‌ی ذخیره). `[استنباط]`
-- دکمه‌های تصویری (`<input type="image">`) مانند `imgbtnMessageText` در صفحه‌ی پیام‌ها توسط مرورگر در بدنه‌ی خروج ارسال **نمی‌شوند**؛ زیرا ارسال دکمه‌ی تصویری باعث اجرای رویداد همان دکمه می‌شود. `[اندازه‌گیری]`
+- دکمه‌های تصویری (`<input type="image">`) و دکمه‌های `submit` (مانند `imgbtnMessageText` در صفحه‌ی پیام‌ها یا `btnFoodReload` / `btnAccept` / `btnCancel` در سبد غذایی) توسط مرورگر در بدنه‌ی خروج ارسال **نمی‌شوند**؛ زیرا ارسال دکمه باعث اجرای رویداد همان دکمه می‌شود. `[اندازه‌گیری]`
 
 ### نمونه‌ی درخواست خروج (صفحه‌ی پروفایل من)
 
@@ -197,4 +198,4 @@ Content-Length: 12110..113857
 6. میزان حساسیت سرور به هدرهای `Origin`، `Referer` و `Sec-Fetch-*`.
 7. اثر دقیق انقضای ۲ دقیقه‌ای `keyId` بر درخواست ورود با تأخیر بالا.
 8. پاسخ سرور به ارسال `GET` مستقیم برای خروج (در ضبط تنها `POST` مشاهده شده است).
-9. وجود `__EVENTVALIDATION` در صفحات فرعی دیگر (مانند `MyTransaction.aspx`، `CreditTransfer.aspx` و `FoodBasket`).
+9. وجود `__EVENTVALIDATION` در سایر صفحات فرعی (مانند `MyTransaction.aspx`، `CreditTransfer.aspx` و `FoodBasketBuy.aspx`؛ در `FoodBasketSale.aspx` نبود `__EVENTVALIDATION` و خروج ۹ فیلدی تأیید شد).

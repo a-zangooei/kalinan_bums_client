@@ -194,8 +194,8 @@ Content-Security-Policy: default-src 'self' ...
 | **رزرو و خرید غذا** (`menuIdx=1`) | رزرو و خرید هفتگی غذا | `../Reservation/Reservation.aspx` |
 | رزرو و خرید غذا | فیش فراموشی | `../Reservation/ForgotReceipt.aspx` |
 | رزرو و خرید غذا | خرید روزفروش | `../Reservation/DailyReservation.aspx` |
-| **سبد غذایی** (`menuIdx=2`) | خرید از سبد غذایی | `../FoodBasket/FoodBasketBuy.aspx` |
-| سبد غذایی | فروش به سبد غذایی | `../FoodBasket/FoodBasketSale.aspx` |
+| **سبد غذایی** (`menuIdx=2`) | خرید از سبد غذایی | `../FoodBasket/FoodBasketBuy.aspx` *(تأییدنشده)* |
+| سبد غذایی | فروش به سبد غذایی | `../FoodBasket/FoodBasketSale.aspx` — [سند مهندسی معکوس](./food-basket-and-sale.md) |
 | **امکانات سیستم** (`menuIdx=3`) | انتقال اعتبار | `../Facility/CreditTransfer.aspx` |
 | **پرداخت اینترنتی** (`menuIdx=4`) | افزایش اعتبار اینترنتی | `../ePay/ePay_Payment.aspx` |
 | **نظرسنجی** (`menuIdx=5`) | پاسخ به نظرسنجی | `../Survey/Survey_Answer.aspx` |
@@ -248,6 +248,7 @@ __EVENTTARGET=ctl00%24logout&__EVENTARGUMENT=&__VIEWSTATE=<1644 chars>&__VIEWSTA
   - `MyMessage.aspx` ← `87AF9C2D`
   - `Reservation.aspx` ← `3ED98A75`
   - `MyProfile.aspx` ← `B57DACA3`
+  - `FoodBasketSale.aspx` ← `92079A9C`
   مقدار `__VIEWSTATEGENERATOR` و `__VIEWSTATE` باید همیشه به صورت پویا از HTML صفحه‌ی جاری استخراج شوند و نباید هاردکد گردند.
 
 ---

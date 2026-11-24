@@ -1,0 +1,115 @@
+جریان درخواست‌ها — «فروش به سبد غذا» (FoodBasketSale.aspx)
+مبنا: دو ضبط PCAPdroid با رمزگشایی TLS (Chrome 156 روی اندروید)، ۱۴۰۵/۰۹/۰۳ (۲۰۲۶-۱۱-۲۴)، ساعت ۱۱:۲۴ (ضبط اول: فروش) و ۱۱:۳۴ (ضبط دوم: فروش و حذف) به وقت تهران.
+ضبط وقتی شروع شد که نشست از قبل باز بود (ورود در ضبط نیست). کوکی‌ها و هدرهای sec-ch-ua*/Sec-Fetch-*/save-data حذف شده‌اند.
+شناسه‌ی رزرو، نام غذا و نام سلف ماسک شده‌اند: RESERVATION_ID = 1234567، غذا = «نام غذای نمونه»، سلف = «سلف نمونه».
+ViewState با «VIEWSTATE_PLACEHOLDER» جایگزین شده (فقط طول‌ها واقعی‌اند).
+
+ترتیب رویدادها
+ 11:23:47  GET  /FoodBasket/FoodBasketSale.aspx → 200
+ 11:23:52  GET  /FoodBasket/FoodBasketSale.aspx → 200  (فرم اولیه؛ VIEWSTATE ۸۹۶ کاراکتر؛ تاریخ پیش‌فرض = امروز؛ Referer: همین صفحه، بازخوانی)
+ 11:24:02  POST /FoodBasket/FoodBasketSale.aspx  [Ajax: «بارگذاری غذا»]  → 200 Delta   (۱)
+ 11:24:08  POST /FoodBasket/FoodBasketSale.aspx  [Ajax: «فروش به سبد غذا»] → 200 Delta + toast موفق   (۲)
+ 11:24:18  GET  /Reservation/Reservation.aspx → 200 (ردیف همان غذا تغییر نمایشی ندارد؛ بخش ۷ گزارش)
+ 11:24:32  GET  /FoodBasket/FoodBasketSale.aspx → 200 (فرم تازه؛ VIEWSTATE ۸۹۶)
+ 11:24:36  POST /FoodBasket/FoodBasketSale.aspx  [Ajax: «بارگذاری غذا»]  → 200 Delta (وضعیت: در سبد، دکمه: حذف)   (۳)
+ 11:24:42  POST /FoodBasket/FoodBasketSale.aspx  [خروج: ctl00$logout]  → 302 /Login.aspx
+ ★ درخواست «حذف از سبد غذا» (btnCancel) در این (ضبط اول) نبود؛ در ضبط دوم هست (بند ۴).
+
+هدرهای مشترک درخواست‌های Ajax (۱ و ۲ و ۳)
+POST https://jeton.bums.ac.ir/FoodBasket/FoodBasketSale.aspx
+Content-Type: application/x-www-form-urlencoded; charset=UTF-8
+X-MicrosoftAjax: Delta=true
+X-Requested-With: XMLHttpRequest
+Cache-Control: no-cache
+Accept: */*
+Origin: https://jeton.bums.ac.ir
+Referer: https://jeton.bums.ac.ir/FoodBasket/FoodBasketSale.aspx
+Cookie: <نشست>
+پاسخ: 200، Content-Type: text/plain; charset=utf-8، Cache-Control: private,no-store (قالب Delta ASP.NET)
+
+────────────────────────────────────────────────────────────────
+(۱) بارگذاری غذا — Content-Length: 1352 — پاسخ ۵۱۶۹ بایت
+  ctl00$ScriptManager=ctl00$UpdatePanel1|ctl00$cphMain$btnFoodReload
+  __EVENTTARGET=
+  __EVENTARGUMENT=
+  __VIEWSTATE=VIEWSTATE_PLACEHOLDER          (۸۹۶ کاراکتر؛ از HTML صفحه)
+  __VIEWSTATEGENERATOR=92079A9C
+  __VIEWSTATEENCRYPTED=
+  ctl00$cphMain$txtDate=1405/09/03
+  ctl00$cphMain$drpReserveType=0
+  ctl00$cphMain$drpFoodType=2
+  __ASYNCPOST=true
+  ctl00$cphMain$btnFoodReload=بارگذاری غذا
+پاسخ: updatePanel + ViewState جدید (۱۱۷۶ کاراکتر). در پنل: fieldset#cphMain_fldsetResult با
+  hdnReservationId=RESERVATION_ID ، lblStatus=«این غذا رزرو شده است» ، lblFood ، lblSelf ، lblFoodcount=1 ،
+  lblReservePrice ، lblBasketSalePrice ، دکمه‌ی btnAccept («فروش به سبد غذا»).
+  (نمونه‌ی پاک‌سازی‌شده: FoodBasket_reload_delta_sanitized.txt)
+
+(۲) فروش به سبد — Content-Length: 1699 — پاسخ ۵۳۵۹ بایت
+  ctl00$ScriptManager=ctl00$UpdatePanel1|ctl00$cphMain$btnAccept
+  ctl00$cphMain$txtDate=1405/09/03
+  ctl00$cphMain$drpReserveType=0
+  ctl00$cphMain$drpFoodType=2
+  ctl00$cphMain$hdnReservationId=RESERVATION_ID
+  __EVENTTARGET=
+  __EVENTARGUMENT=
+  __VIEWSTATE=VIEWSTATE_PLACEHOLDER          (۱۱۷۶ کاراکتر؛ از پاسخ Delta مرحله‌ی ۱)
+  __VIEWSTATEGENERATOR=92079A9C
+  __VIEWSTATEENCRYPTED=
+  __ASYNCPOST=true
+  ctl00$cphMain$btnAccept=فروش به سبد غذا
+پاسخ: updatePanel + ViewState جدید (۱۱۷۶) + اسکریپت:
+  toastify('success', 'این غذا به سبد غذایی جهت فروش اضافه شد', 'عملیات موفق!', 'toast-bottom-right', 'true');
+  نکته: در پنل بازگشتی lblStatus هنوز «این غذا رزرو شده است» (کهنه) است، اما دکمه به btnCancel («حذف از سبد غذا») عوض شده.
+  (نمونه: FoodBasket_sell_delta_sanitized.txt)
+
+(۳) بارگذاری دوباره بعد از فروش — Content-Length: 1338 (مثل ۱، ViewState ۸۹۶ از GET تازه) — پاسخ ۵۲۴۳ بایت
+  پاسخ: lblStatus=«این غذا در سبد غذایی برای فروش قرار دارد» ، دکمه: btnCancel («حذف از سبد غذا»)، ViewState ۱۲۱۶.
+  (نمونه: FoodBasket_reload_after_sell_delta_sanitized.txt)
+
+────────────────────────────────────────────────────────────────
+(۴) «حذف از سبد غذا» — ضبط دوم (ساعت ۱۱:۳۴:۵۷) — Content-Length: 1755 — پاسخ ۵۴۴۷ بایت  [اندازه‌گیری]
+  ctl00$ScriptManager=ctl00$UpdatePanel1|ctl00$cphMain$btnCancel
+  ctl00$cphMain$txtDate=1405/09/04
+  ctl00$cphMain$drpReserveType=0
+  ctl00$cphMain$drpFoodType=2
+  ctl00$cphMain$hdnReservationId=RESERVATION_ID
+  __EVENTTARGET=
+  __EVENTARGUMENT=
+  __VIEWSTATE=VIEWSTATE_PLACEHOLDER          (۱۲۴۰ کاراکتر؛ از پاسخ Delta بارگذاریِ بعد از فروش)
+  __VIEWSTATEGENERATOR=92079A9C
+  __VIEWSTATEENCRYPTED=
+  __ASYNCPOST=true
+  ctl00$cphMain$btnCancel=حذف از سبد غذا
+پاسخ: 200 text/plain؛ updatePanel + ViewState جدید (۱۲۴۰) + اسکریپت:
+  toastify('success', 'این غذا از سبد غذایی حذف شد', 'عملیات موفق!', 'toast-bottom-right', 'true');
+  نکته: lblStatus هنوز کهنه («این غذا در سبد غذایی برای فروش قرار دارد») است، اما دکمه به btnAccept برگشته.
+  (نمونه: FoodBasket_cancel_delta_sanitized.txt)
+
+ضبط دوم، کل چرخه (تاریخ 1405/09/04، ناهار؛ ساعت تهران؛ ضبط شامل خروج نیست):
+ 11:34:43  GET  /FoodBasket/FoodBasketSale.aspx → 200 (VIEWSTATE ۸۹۶)
+ 11:34:48  POST بارگذاری غذا (۱۱ فیلد، ۱۳۴۰ بایت)  → 200 Delta ۵۱۹۶ (رزرو شده، btnAccept؛ VIEWSTATE ۱۱۹۶)
+ 11:34:51  POST فروش به سبد (۱۲ فیلد، ۱۷۲۱ بایت)    → 200 Delta ۵۳۸۶ + toast موفق (btnCancel؛ برچسب کهنه)
+ 11:34:53  POST بارگذاری غذا (۱۲ فیلد، ۱۷۱۳ بایت، با hdnReservationId؛ بدون GET تازه) → 200 Delta ۵۲۷۴ (در سبد، btnCancel؛ VIEWSTATE ۱۲۴۰)
+ 11:34:57  POST حذف از سبد (۱۲ فیلد، ۱۷۵۵ بایت)    → 200 Delta ۵۴۴۷ + toast موفق (btnAccept؛ برچسب کهنه)
+ 11:35:00  GET  /FoodBasket/FoodBasketSale.aspx → 200
+ 11:35:08  POST بارگذاری غذا (۱۱ فیلد، ۱۳۵۸ بایت، VIEWSTATE ۸۹۶) → 200 Delta ۵۱۹۶ (رزرو شده، btnAccept)
+ 11:35:08  POST بارگذاری غذا (۱۲ فیلد، ۱۶۹۵ بایت، VIEWSTATE ۱۱۹۶، با hdnReservationId) → 200 Delta ۵۱۹۶ (پاسخ همانند بالا؛ احتمالاً دوبار لمس)
+ (نمونه: FoodBasket_reload_after_cancel_delta_sanitized.txt)
+ نکته‌ی ViewState: طول‌ها بین دو ضبط فرق داشت (۱۱۷۶/۱۱۹۶ و ۱۲۱۶/۱۲۴۰)؛ طول ثابت فرض نشود.
+
+────────────────────────────────────────────────────────────────
+(۵) خروج از همین صفحه (مرجع: گزارش خروج) — Content-Length: 1539 — پاسخ 302 → /Login.aspx
+  ctl00$cphMain$txtDate=1405/09/03
+  ctl00$cphMain$drpReserveType=0
+  ctl00$cphMain$drpFoodType=2
+  ctl00$cphMain$hdnReservationId=RESERVATION_ID
+  __EVENTTARGET=ctl00$logout
+  __EVENTARGUMENT=
+  __VIEWSTATE=VIEWSTATE_PLACEHOLDER          (۱۲۱۶ کاراکتر)
+  __VIEWSTATEGENERATOR=92079A9C
+  __VIEWSTATEENCRYPTED=
+  (POST معمولی، نه Ajax؛ بدنه شامل کنترل‌های موفق فرم؛ دکمه‌ها نیستند)
+
+Delta: هر پاسخ شامل رکوردهای hiddenField برای __VIEWSTATE/__VIEWSTATEGENERATOR/__VIEWSTATEENCRYPTED/__EVENTTARGET/__EVENTARGUMENT
+و asyncPostBackTimeout و formAction (=./FoodBasketSale.aspx) است. طول رکوردها بر حسب «کاراکتر» است.
