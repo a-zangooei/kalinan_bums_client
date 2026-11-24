@@ -74,6 +74,7 @@ fun SettingsScreen(
     onThemeChanged: (AppThemeMode) -> Unit,
     onNavigateBack: (() -> Unit)? = null,
     onCheckForUpdates: (() -> Unit)? = null,
+    isCheckingForUpdates: Boolean = false,
     onSecuritySettingsChanged: (() -> Unit)? = null,
     modifier: Modifier = Modifier
 ) {
@@ -220,6 +221,7 @@ fun SettingsScreen(
             }
         },
         onCheckForUpdates = onCheckForUpdates,
+        isCheckingForUpdates = isCheckingForUpdates,
         modifier = modifier,
         isAutoCaptchaEnabled = isAutoCaptchaEnabled,
         onToggleAutoCaptcha = { enable ->
@@ -291,6 +293,7 @@ internal fun SettingsScreenContent(
     onVersionClick: () -> Unit,
     onCheckForUpdates: (() -> Unit)?,
     modifier: Modifier = Modifier,
+    isCheckingForUpdates: Boolean = false,
     isAutoCaptchaEnabled: Boolean = false,
     onToggleAutoCaptcha: (Boolean) -> Unit = {},
     ocrModuleState: OcrModuleState = OcrModuleState.Ready,
@@ -392,7 +395,8 @@ internal fun SettingsScreenContent(
                     versionName = versionName,
                     versionCode = versionCode,
                     onVersionClick = onVersionClick,
-                    onCheckForUpdates = onCheckForUpdates
+                    onCheckForUpdates = onCheckForUpdates,
+                    isCheckingForUpdates = isCheckingForUpdates
                 )
 
                 Spacer(modifier = Modifier.height(24.dp))

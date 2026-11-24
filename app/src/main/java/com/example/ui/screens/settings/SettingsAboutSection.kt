@@ -16,6 +16,7 @@ import androidx.compose.material.icons.filled.CloudQueue
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -26,6 +27,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
@@ -40,7 +42,8 @@ internal fun AboutVersionSection(
     versionName: String,
     versionCode: Int,
     onVersionClick: () -> Unit,
-    onCheckForUpdates: (() -> Unit)?
+    onCheckForUpdates: (() -> Unit)?,
+    isCheckingForUpdates: Boolean = false
 ) {
     SettingsSectionTitle(
         title = "درباره برنامه",
@@ -98,18 +101,29 @@ internal fun AboutVersionSection(
                 Spacer(modifier = Modifier.height(10.dp))
                 OutlinedButton(
                     onClick = onCheckForUpdates,
+                    enabled = !isCheckingForUpdates,
                     shape = RoundedCornerShape(10.dp),
-                    modifier = Modifier.heightIn(min = 48.dp)
+                    modifier = Modifier
+                        .heightIn(min = 48.dp)
+                        .testTag("settings_check_updates_button")
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.CloudQueue,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = TealPrimary
-                    )
+                    if (isCheckingForUpdates) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp,
+                            color = TealPrimary
+                        )
+                    } else {
+                        Icon(
+                            imageVector = Icons.Default.CloudQueue,
+                            contentDescription = null,
+                            modifier = Modifier.size(16.dp),
+                            tint = TealPrimary
+                        )
+                    }
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = "بررسی به‌روزرسانی جدید",
+                        text = if (isCheckingForUpdates) "در حال بررسی به‌روزرسانی..." else "بررسی به‌روزرسانی جدید",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
                         color = TealPrimary

@@ -33,12 +33,10 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.data.local.UserPreferences
 import com.example.data.logger.AppLogger
 import com.example.data.model.UserSession
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.ui.components.PersianRtlLayout
 import com.example.ui.components.UpdateDialog
+import com.example.ui.components.UpdateStatusDialog
 import com.example.ui.screens.LoginScreen
 import com.example.ui.screens.MenuScreen
 import com.example.ui.screens.SettingsScreen
@@ -105,7 +103,8 @@ fun KalinanApp(
     val updateViewModel: UpdateViewModel = viewModel()
 
     val updateInfo by updateViewModel.updateInfo.collectAsStateWithLifecycle()
-    val userMessage by updateViewModel.userMessage.collectAsStateWithLifecycle()
+    val userStatus by updateViewModel.userStatus.collectAsStateWithLifecycle()
+    val isCheckingUpdates by updateViewModel.isChecking.collectAsStateWithLifecycle()
     val messagesState by messagesViewModel.pageState.collectAsStateWithLifecycle()
     val menuBlockedByUnread by menuViewModel.hasUnreadMessagesBlocked.collectAsStateWithLifecycle()
     val profileAvatarBytes by profileViewModel.avatarBytes.collectAsStateWithLifecycle()
@@ -143,6 +142,7 @@ fun KalinanApp(
                     AppLogger.logAction("Pre-login Settings closed via Back button")
                 },
                 onCheckForUpdates = { updateViewModel.checkForUpdates(isManual = true) },
+                isCheckingForUpdates = isCheckingUpdates,
                 onSecuritySettingsChanged = {
                     authViewModel.syncCredentialState(initialLoad = false)
                 },
@@ -441,6 +441,7 @@ fun KalinanApp(
                         onThemeChanged = onThemeChanged,
                         onNavigateBack = { selectedBottomTab = 0 },
                         onCheckForUpdates = { updateViewModel.checkForUpdates(isManual = true) },
+                        isCheckingForUpdates = isCheckingUpdates,
                         onSecuritySettingsChanged = {
                             authViewModel.syncCredentialState(initialLoad = false)
                         },
@@ -495,31 +496,10 @@ fun KalinanApp(
     }
 
     // Render User Notification for Manual Check (e.g. app is up to date)
-    userMessage?.let { msg ->
-        AlertDialog(
-            onDismissRequest = { updateViewModel.dismissUserMessage() },
-            title = {
-                Text(
-                    text = "وضعیت به‌روزرسانی برنامه",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 16.sp
-                )
-            },
-            text = {
-                Text(
-                    text = msg,
-                    fontSize = 13.sp,
-                    lineHeight = 20.sp
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = { updateViewModel.dismissUserMessage() },
-                    modifier = Modifier.minimumInteractiveComponentSize()
-                ) {
-                    Text("متوجه شدم", fontWeight = FontWeight.Bold)
-                }
-            }
+    userStatus?.let { status ->
+        UpdateStatusDialog(
+            status = status,
+            onDismiss = { updateViewModel.dismissUserMessage() }
         )
     }
 }
