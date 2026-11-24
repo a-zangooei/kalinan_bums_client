@@ -11,6 +11,7 @@ import com.example.data.model.WeekNavigationDirection
 import com.example.data.model.WeeklyMenu
 import com.example.data.network.CullinanHttpClient
 import com.example.data.repository.MenuRepository
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -61,6 +62,34 @@ class MenuViewModel(
     private val _weekOffset = MutableStateFlow(0)
     val weekOffset: StateFlow<Int> = _weekOffset.asStateFlow()
 
+    private var loadJob: Job? = null
+    private var navigateJob: Job? = null
+    private var mutationJob: Job? = null
+
+    fun cancelPendingRequests() {
+        loadJob?.cancel()
+        navigateJob?.cancel()
+        mutationJob?.cancel()
+        loadJob = null
+        navigateJob = null
+        mutationJob = null
+    }
+
+    fun clearSession() {
+        cancelPendingRequests()
+        _weeklyMenu.value = null
+        _selectedDayIndex.value = 0
+        _selectedMealFilter.value = null
+        _isLoading.value = false
+        _isMutating.value = false
+        _processingDayIndex.value = null
+        _errorMessage.value = null
+        _userFeedback.value = null
+        _hasUnreadMessagesBlocked.value = false
+        _surveyBlockInfo.value = null
+        _weekOffset.value = 0
+    }
+
     fun clearUnreadBlocked() {
         _hasUnreadMessagesBlocked.value = false
     }
@@ -71,7 +100,8 @@ class MenuViewModel(
 
     fun loadInitialMenu() {
         AppLogger.logInfo("MenuViewModel", "LoadInitialMenu", "Loading initial weekly reservation menu")
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
             val result = menuRepository.fetchInitialMenu()
@@ -130,7 +160,8 @@ class MenuViewModel(
 
         val activeTabId = _selectedMealFilter.value?.tabId ?: MealType.LUNCH.tabId
         AppLogger.logInfo("MenuViewModel", "NavigateWeek", "Navigating $direction (currentOffset=${_weekOffset.value}, tabId=$activeTabId)")
-        viewModelScope.launch {
+        navigateJob?.cancel()
+        navigateJob = viewModelScope.launch {
             _isLoading.value = true
             _errorMessage.value = null
 
@@ -181,7 +212,7 @@ class MenuViewModel(
         }
 
         AppLogger.logInfo("MenuViewModel", "ReserveMeal", "Requesting reserve ${mealType.name} day=$dayIndex foodId=$foodId selfId=$selfId")
-        viewModelScope.launch {
+        mutationJob = viewModelScope.launch {
             _isMutating.value = true
             _processingDayIndex.value = dayIndex
             _errorMessage.value = null
@@ -229,7 +260,7 @@ class MenuViewModel(
         }
 
         AppLogger.logInfo("MenuViewModel", "CancelMeal", "Requesting cancel ${mealType.name} day=$dayIndex")
-        viewModelScope.launch {
+        mutationJob = viewModelScope.launch {
             _isMutating.value = true
             _processingDayIndex.value = dayIndex
             _errorMessage.value = null

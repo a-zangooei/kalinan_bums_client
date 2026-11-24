@@ -14,11 +14,34 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 
-class AuthRepository {
+enum class LogoutStrategy {
+    DIRECT_PAGE_STATE,
+    DELTA_PATCHED,
+    DEFAULT_FALLBACK,
+    ALREADY_LOGGED_OUT,
+    LOCAL_ONLY
+}
 
-    private val sessionMutex = Mutex()
+data class LogoutOutcome(
+    val serverConfirmed: Boolean,
+    val alreadyLoggedOut: Boolean = false,
+    val strategy: LogoutStrategy,
+    val sourcePagePath: String? = null,
+    val httpStatus: Int? = null,
+    val errorMessage: String? = null
+)
+
+class AuthRepository(
+    private val pageTracker: com.example.data.network.MasterPageTracker = CullinanHttpClient.masterPageTracker
+) {
+
+    companion object {
+        // Shared across all AuthRepository instances so login, captcha, and logout serialize cleanly
+        internal val sessionMutex = Mutex()
+    }
 
     suspend fun fetchLoginPage(): Result<LoginPageState> = withContext(Dispatchers.IO) {
         val flowId = AppLogger.generateFlowId("auth_init")
@@ -35,7 +58,8 @@ class AuthRepository {
 
         sessionMutex.withLock {
             try {
-                // Start with a clean session cookie so pre-login state cannot collide with old cookies
+                // Start with a clean session state & cookie jar so pre-login state cannot collide with old sessions
+                pageTracker.clear("fetch_login_page")
                 CullinanHttpClient.cookieJar.clear()
 
                 val request = Request.Builder()
@@ -207,115 +231,412 @@ class AuthRepository {
         }
     }
 
-    suspend fun logoutFromServer(currentMenu: WeeklyMenu?): Result<Boolean> = withContext(Dispatchers.IO) {
+    suspend fun logoutFromServer(currentMenu: WeeklyMenu? = null): Result<Boolean> {
+        val outcome = logoutDetailed(currentMenu)
+        return if (outcome.serverConfirmed) {
+            Result.success(true)
+        } else {
+            Result.failure(Exception(outcome.errorMessage ?: "خروج در سمت سرور تأیید نشد."))
+        }
+    }
+
+    suspend fun logoutDetailed(currentMenu: WeeklyMenu? = null): LogoutOutcome = withContext(Dispatchers.IO) {
         val flowId = AppLogger.generateFlowId("logout")
-        AppLogger.log(
-            LogEntry(
-                timestamp = "",
-                level = LogLevel.INFO,
-                component = "AuthRepository",
-                operation = "ServerLogout",
-                flowId = flowId,
-                message = "Initiating real server-side logout request"
-            )
-        )
+        val flowStartMs = System.currentTimeMillis()
 
-        try {
-            var viewState = currentMenu?.viewState ?: ""
-            var viewStateGen = currentMenu?.viewStateGenerator?.ifEmpty { "3ED98A75" } ?: "3ED98A75"
-            var eventVal = currentMenu?.eventValidation ?: ""
+        sessionMutex.withLock {
+            val tracked = pageTracker.currentState()
+            val trackedPath = tracked?.pageUrl?.toHttpUrlOrNull()?.encodedPath
+            val hasMenuFallback = !currentMenu?.viewState.isNullOrBlank()
 
-            // If viewState is missing, fetch current page HTML to extract latest ViewState
-            if (viewState.isBlank()) {
-                AppLogger.logWarn(
+            AppLogger.log(
+                LogEntry(
+                    timestamp = "",
+                    level = LogLevel.INFO,
                     component = "AuthRepository",
-                    operation = "LogoutFetchFallbackState",
-                    message = "Current menu missing ViewState during logout; fetching Reservation.aspx for fresh state",
+                    operation = "LogoutInitiated",
                     flowId = flowId,
-                    errorCategory = "LOGOUT_STATE_FALLBACK"
+                    message = "Initiating universal server-side logout (trackedPath=${trackedPath ?: "NONE"}, trackedSource=${tracked?.source?.name ?: "NONE"}, hasLegacyMenuState=$hasMenuFallback)"
                 )
-                val getReq = Request.Builder()
-                    .url(CullinanHttpClient.RESERVATION_URL)
-                    .get()
-                    .header("Referer", CullinanHttpClient.BASE_URL)
-                    .tag(LogContext::class.java, LogContext(flowId, "LogoutFetchState"))
-                    .build()
-                CullinanHttpClient.executeCall(getReq).use { getResp ->
-                    if (getResp.isSuccessful) {
-                        val html = getResp.body?.string() ?: ""
-                        val fields = AuthHtmlParser.extractHiddenFields(html, viewStateGen)
-                        viewState = fields.viewState
-                        viewStateGen = fields.viewStateGenerator
-                        eventVal = fields.eventValidation
+            )
+
+            try {
+                // Attempt 1: Build and POST logout dynamically from latest tracked MasterPageState (direct or delta-patched)
+                if (tracked != null) {
+                    val primaryStrategy = if (tracked.source == com.example.data.network.MasterPageSource.DELTA_PATCHED) {
+                        LogoutStrategy.DELTA_PATCHED
+                    } else {
+                        LogoutStrategy.DIRECT_PAGE_STATE
+                    }
+                    val built = LogoutFormParser.buildLogoutPayload(
+                        pageUrl = tracked.pageUrl,
+                        html = tracked.html,
+                        deltaHiddenFields = tracked.deltaHiddenFields,
+                        deltaUpdatePanels = tracked.deltaUpdatePanels
+                    )
+                    if (built != null) {
+                        val ageMs = (System.currentTimeMillis() - tracked.updatedAtMs).coerceAtLeast(0L)
+                        AppLogger.log(
+                            LogEntry(
+                                timestamp = "",
+                                level = LogLevel.INFO,
+                                component = "AuthRepository",
+                                operation = "LogoutStrategySelected",
+                                flowId = flowId,
+                                message = "Selected strategy=${primaryStrategy.name} on path=${trackedPath ?: tracked.pageUrl} (stateAgeMs=$ageMs, deltaFields=${tracked.deltaHiddenFields.keys.joinToString().ifBlank { "none" }})"
+                            )
+                        )
+                        logBuiltLogoutPayload(flowId = flowId, built = built, isCachedState = true)
+
+                        val primaryResult = executeLogoutPost(
+                            built = built,
+                            flowId = flowId,
+                            operationName = "LogoutPost"
+                        )
+                        if (primaryResult.confirmed) {
+                            pageTracker.clear("logout_confirmed")
+                            val totalDur = System.currentTimeMillis() - flowStartMs
+                            AppLogger.log(
+                                LogEntry(
+                                    timestamp = "",
+                                    level = LogLevel.INFO,
+                                    component = "AuthRepository",
+                                    operation = "ServerLogoutSuccess",
+                                    flowId = flowId,
+                                    durationMs = totalDur,
+                                    http = com.example.data.logger.HttpDiagnostics(
+                                        method = "POST",
+                                        url = built.postUrl,
+                                        statusCode = primaryResult.statusCode,
+                                        contentLength = primaryResult.discardedBodyBytes.takeIf { it >= 0L },
+                                        redirectLocation = primaryResult.location,
+                                        isNoRedirect = true
+                                    ),
+                                    message = "Server confirmed logout via ${primaryStrategy.name} from ${trackedPath ?: built.postUrl} (HTTP ${primaryResult.statusCode} -> ${primaryResult.location}, discardedBodyBytes=${primaryResult.discardedBodyBytes})"
+                                )
+                            )
+                            return@withLock LogoutOutcome(
+                                serverConfirmed = true,
+                                alreadyLoggedOut = false,
+                                strategy = primaryStrategy,
+                                sourcePagePath = trackedPath,
+                                httpStatus = primaryResult.statusCode
+                            )
+                        }
+
+                        AppLogger.logWarn(
+                            component = "AuthRepository",
+                            operation = "LogoutFallbackTriggered",
+                            message = "Primary logout POST from ${trackedPath ?: built.postUrl} returned HTTP ${primaryResult.statusCode} (Location='${primaryResult.location}'); executing single-hop Default.aspx fallback",
+                            flowId = flowId,
+                            errorCategory = "LOGOUT_NON_302_PRIMARY"
+                        )
                     } else {
                         AppLogger.logWarn(
                             component = "AuthRepository",
-                            operation = "LogoutFetchStateFailed",
-                            message = "Fallback Reservation GET during logout failed with HTTP ${getResp.code}",
+                            operation = "LogoutFallbackTriggered",
+                            message = "Tracked page at ${trackedPath ?: "unknown"} lacked valid Master logout form; executing single-hop Default.aspx fallback",
                             flowId = flowId,
-                            errorCategory = "LOGOUT_STATE_HTTP_${getResp.code}"
+                            errorCategory = "LOGOUT_INVALID_TRACKED_DOM"
                         )
                     }
+                } else {
+                    AppLogger.logInfo(
+                        component = "AuthRepository",
+                        operation = "LogoutFallbackTriggered",
+                        message = "No tracked MasterPageState in memory; executing lightweight GET /Master/Default.aspx fallback",
+                        flowId = flowId
+                    )
+                }
+
+                // Attempt 2: Single-hop fallback via lightweight GET /Master/Default.aspx (~13.5 KB)
+                executeDefaultFallbackLogout(flowId = flowId, flowStartMs = flowStartMs)
+            } catch (e: Exception) {
+                if (e is CancellationException) throw e
+                val totalDur = System.currentTimeMillis() - flowStartMs
+                AppLogger.logError(
+                    tag = "AuthRepository",
+                    message = "Server logout failed with network/runtime exception (${e.javaClass.simpleName}): ${e.message}",
+                    throwable = e,
+                    flowId = flowId,
+                    operation = "ServerLogoutError",
+                    errorCategory = "LOGOUT_NETWORK_ERROR"
+                )
+                LogoutOutcome(
+                    serverConfirmed = false,
+                    alreadyLoggedOut = false,
+                    strategy = LogoutStrategy.LOCAL_ONLY,
+                    sourcePagePath = trackedPath,
+                    errorMessage = e.message ?: "خطا در ارتباط با سرور هنگام خروج"
+                ).also {
+                    AppLogger.logDebug(
+                        component = "AuthRepository",
+                        operation = "LogoutLocalFallbackNotice",
+                        message = "Proceeding to unconditional local session cleanup after error (${totalDur}ms)",
+                        flowId = flowId
+                    )
                 }
             }
+        }
+    }
 
-            val formBody = AuthFormBuilder.buildLogoutFormBody(viewState, viewStateGen, eventVal, currentMenu)
+    private data class LogoutPostResponse(
+        val statusCode: Int,
+        val location: String,
+        val discardedBodyBytes: Long,
+        val confirmed: Boolean
+    )
 
-            val request = Request.Builder()
-                .url(CullinanHttpClient.RESERVATION_URL)
-                .post(formBody)
-                .header("Referer", CullinanHttpClient.RESERVATION_URL)
-                .header("Origin", CullinanHttpClient.BASE_URL)
-                .tag(LogContext::class.java, LogContext(flowId, "LogoutPost"))
-                .build()
+    private fun executeLogoutPost(
+        built: LogoutFormParser.BuiltLogoutPayload,
+        flowId: String,
+        operationName: String
+    ): LogoutPostResponse {
+        val request = Request.Builder()
+            .url(built.postUrl)
+            .post(built.formBody)
+            .header("Origin", built.originUrl)
+            .header("Referer", built.refererUrl)
+            .tag(LogContext::class.java, LogContext(flowId, operationName))
+            .build()
 
-            var responseCode = 0
-            var location = ""
-            var bodyString = ""
-            var finalUrl = ""
-            CullinanHttpClient.executeCallNoRedirect(request).use { response ->
-                responseCode = response.code
-                location = response.header("Location") ?: ""
-                bodyString = response.body?.string() ?: ""
-                finalUrl = response.request.url.toString()
+        var statusCode = 0
+        var location = ""
+        var discardedBodyBytes = -1L
+
+        CullinanHttpClient.executeCallNoRedirect(request).use { response ->
+            statusCode = response.code
+            location = response.header("Location") ?: ""
+            discardedBodyBytes = response.body?.contentLength() ?: -1L
+            // Privacy invariant: NEVER read response.body when status is 3xx (contains 12KB-114KB source PII HTML)
+        }
+
+        val confirmed = statusCode in 300..399 && location.contains("Login.aspx", ignoreCase = true)
+        return LogoutPostResponse(
+            statusCode = statusCode,
+            location = location,
+            discardedBodyBytes = discardedBodyBytes,
+            confirmed = confirmed
+        )
+    }
+
+    private fun executeDefaultFallbackLogout(flowId: String, flowStartMs: Long): LogoutOutcome {
+        val defaultUrl = CullinanHttpClient.DEFAULT_PAGE_URL
+        val getReq = Request.Builder()
+            .url(defaultUrl)
+            .get()
+            .header("Referer", CullinanHttpClient.BASE_URL)
+            .tag(LogContext::class.java, LogContext(flowId, "LogoutFallbackGet"))
+            .build()
+
+        var getCode = 0
+        var finalUrl = defaultUrl
+        var fallbackHtml = ""
+        var isGetSuccessful = false
+
+        CullinanHttpClient.executeCall(getReq).use { getResp ->
+            getCode = getResp.code
+            finalUrl = getResp.request.url.toString()
+            isGetSuccessful = getResp.isSuccessful
+            if (finalUrl.contains("Login.aspx", ignoreCase = true)) {
+                // Already redirected to Login.aspx: session is already closed on server; do not read body
+            } else if (isGetSuccessful) {
+                fallbackHtml = getResp.body?.string() ?: ""
             }
+        }
 
-            val isSuccess = responseCode == 302 ||
-                location.contains("Login", ignoreCase = true) ||
-                finalUrl.contains("Login", ignoreCase = true) ||
-                bodyString.contains("txtUsername", ignoreCase = true)
+        val finalPath = finalUrl.toHttpUrlOrNull()?.encodedPath
 
-            if (isSuccess) {
+        if (finalUrl.contains("Login.aspx", ignoreCase = true)) {
+            pageTracker.clear("already_logged_out_redirect")
+            val totalDur = System.currentTimeMillis() - flowStartMs
+            AppLogger.log(
+                LogEntry(
+                    timestamp = "",
+                    level = LogLevel.INFO,
+                    component = "AuthRepository",
+                    operation = "LogoutAlreadyLoggedOut",
+                    flowId = flowId,
+                    durationMs = totalDur,
+                    http = com.example.data.logger.HttpDiagnostics(
+                        method = "GET",
+                        url = defaultUrl,
+                        statusCode = getCode,
+                        finalUrl = finalUrl
+                    ),
+                    message = "Fallback GET /Master/Default.aspx redirected to Login.aspx ($finalPath); server session already closed (AlreadyLoggedOut)"
+                )
+            )
+            return LogoutOutcome(
+                serverConfirmed = true,
+                alreadyLoggedOut = true,
+                strategy = LogoutStrategy.ALREADY_LOGGED_OUT,
+                sourcePagePath = finalPath,
+                httpStatus = getCode
+            )
+        }
+
+        if (!isGetSuccessful) {
+            AppLogger.logWarn(
+                component = "AuthRepository",
+                operation = "LogoutFallbackGetFailed",
+                message = "Fallback GET /Master/Default.aspx failed with HTTP $getCode (finalPath=$finalPath)",
+                flowId = flowId,
+                errorCategory = "LOGOUT_FALLBACK_GET_HTTP_$getCode"
+            )
+            return LogoutOutcome(
+                serverConfirmed = false,
+                strategy = LogoutStrategy.DEFAULT_FALLBACK,
+                sourcePagePath = finalPath,
+                httpStatus = getCode,
+                errorMessage = "دریافت صفحه بازگشت خروج با خطا مواجه شد (کد: $getCode)"
+            )
+        }
+
+        val builtFallback = LogoutFormParser.buildLogoutPayload(pageUrl = finalUrl, html = fallbackHtml)
+        if (builtFallback == null) {
+            val isLoginDom = fallbackHtml.contains("txtUsernamePlain", ignoreCase = true) ||
+                fallbackHtml.contains("publicKeytxt", ignoreCase = true)
+            if (isLoginDom) {
+                pageTracker.clear("already_logged_out_dom")
+                val totalDur = System.currentTimeMillis() - flowStartMs
                 AppLogger.log(
                     LogEntry(
                         timestamp = "",
                         level = LogLevel.INFO,
                         component = "AuthRepository",
-                        operation = "ServerLogoutSuccess",
+                        operation = "LogoutAlreadyLoggedOut",
                         flowId = flowId,
-                        message = "Server confirmed logout (code=$responseCode, Location=$location)"
+                        durationMs = totalDur,
+                        message = "Fallback GET returned Login DOM at $finalPath; server session already closed (AlreadyLoggedOut)"
                     )
                 )
-                Result.success(true)
-            } else {
-                AppLogger.log(
-                    LogEntry(
-                        timestamp = "",
-                        level = LogLevel.WARN,
-                        component = "AuthRepository",
-                        operation = "ServerLogoutWarning",
-                        flowId = flowId,
-                        errorCategory = "LOGOUT_NON_302",
-                        message = "Server returned non-redirect status on logout: $responseCode"
-                    )
+                return LogoutOutcome(
+                    serverConfirmed = true,
+                    alreadyLoggedOut = true,
+                    strategy = LogoutStrategy.ALREADY_LOGGED_OUT,
+                    sourcePagePath = finalPath,
+                    httpStatus = getCode
                 )
-                Result.failure(Exception("سرور ریدایرکت خروج صادر نکرد (کد: $responseCode)"))
             }
-        } catch (e: Exception) {
-            if (e is CancellationException) throw e
-            AppLogger.logError("AuthRepository", "Server logout exception: ${e.message}", e, flowId = flowId)
-            Result.failure(e)
+
+            AppLogger.logWarn(
+                component = "AuthRepository",
+                operation = "LogoutFallbackNoForm",
+                message = "Fallback page at $finalPath (len=${fallbackHtml.length}) did not contain valid Master logout form",
+                flowId = flowId,
+                errorCategory = "LOGOUT_FALLBACK_MISSING_FORM"
+            )
+            return LogoutOutcome(
+                serverConfirmed = false,
+                strategy = LogoutStrategy.DEFAULT_FALLBACK,
+                sourcePagePath = finalPath,
+                httpStatus = getCode,
+                errorMessage = "ساختار فرم خروج در صفحه بازگشت یافت نشد."
+            )
         }
+
+        AppLogger.logDebug(
+            component = "AuthRepository",
+            operation = "LogoutFallbackPageLoaded",
+            message = "Loaded fallback Master page path=$finalPath (len=${fallbackHtml.length}, gen=${builtFallback.viewStateGenerator ?: "N/A"}, target=${builtFallback.eventTarget})",
+            flowId = flowId
+        )
+        logBuiltLogoutPayload(flowId = flowId, built = builtFallback, isCachedState = false)
+
+        val fallbackPostResult = executeLogoutPost(
+            built = builtFallback,
+            flowId = flowId,
+            operationName = "LogoutFallbackPost"
+        )
+        val totalDur = System.currentTimeMillis() - flowStartMs
+
+        return if (fallbackPostResult.confirmed) {
+            pageTracker.clear("logout_fallback_confirmed")
+            AppLogger.log(
+                LogEntry(
+                    timestamp = "",
+                    level = LogLevel.INFO,
+                    component = "AuthRepository",
+                    operation = "ServerLogoutSuccess",
+                    flowId = flowId,
+                    durationMs = totalDur,
+                    http = com.example.data.logger.HttpDiagnostics(
+                        method = "POST",
+                        url = builtFallback.postUrl,
+                        statusCode = fallbackPostResult.statusCode,
+                        contentLength = fallbackPostResult.discardedBodyBytes.takeIf { it >= 0L },
+                        redirectLocation = fallbackPostResult.location,
+                        isNoRedirect = true
+                    ),
+                    message = "Server confirmed logout via DEFAULT_FALLBACK from $finalPath (HTTP ${fallbackPostResult.statusCode} -> ${fallbackPostResult.location}, discardedBodyBytes=${fallbackPostResult.discardedBodyBytes})"
+                )
+            )
+            LogoutOutcome(
+                serverConfirmed = true,
+                alreadyLoggedOut = false,
+                strategy = LogoutStrategy.DEFAULT_FALLBACK,
+                sourcePagePath = finalPath,
+                httpStatus = fallbackPostResult.statusCode
+            )
+        } else {
+            AppLogger.log(
+                LogEntry(
+                    timestamp = "",
+                    level = LogLevel.WARN,
+                    component = "AuthRepository",
+                    operation = "ServerLogoutWarning",
+                    flowId = flowId,
+                    durationMs = totalDur,
+                    errorCategory = "LOGOUT_NON_302",
+                    http = com.example.data.logger.HttpDiagnostics(
+                        method = "POST",
+                        url = builtFallback.postUrl,
+                        statusCode = fallbackPostResult.statusCode,
+                        redirectLocation = fallbackPostResult.location,
+                        isNoRedirect = true
+                    ),
+                    message = "Fallback logout POST from $finalPath returned non-redirect status ${fallbackPostResult.statusCode} (Location='${fallbackPostResult.location}')"
+                )
+            )
+            LogoutOutcome(
+                serverConfirmed = false,
+                strategy = LogoutStrategy.DEFAULT_FALLBACK,
+                sourcePagePath = finalPath,
+                httpStatus = fallbackPostResult.statusCode,
+                errorMessage = "سرور ریدایرکت خروج صادر نکرد (کد: ${fallbackPostResult.statusCode})"
+            )
+        }
+    }
+
+    private fun logBuiltLogoutPayload(
+        flowId: String,
+        built: LogoutFormParser.BuiltLogoutPayload,
+        isCachedState: Boolean
+    ) {
+        val actionPath = built.postUrl.toHttpUrlOrNull()?.encodedPath ?: built.postUrl
+        val refererPath = built.refererUrl.toHttpUrlOrNull()?.encodedPath ?: built.refererUrl
+        AppLogger.log(
+            LogEntry(
+                timestamp = "",
+                level = LogLevel.DEBUG,
+                component = "AuthRepository",
+                operation = "LogoutFormBuilt",
+                flowId = flowId,
+                aspnet = com.example.data.logger.AspNetDiagnostics(
+                    viewStateLength = built.viewStateLength,
+                    viewStateFingerprint = built.viewStateFingerprint,
+                    viewStateChunksCount = built.viewStateChunksCount,
+                    viewStateGenerator = built.viewStateGenerator,
+                    hasEventValidation = built.hasEventValidation,
+                    eventValidationLength = built.eventValidationLength,
+                    eventTarget = built.eventTarget,
+                    formFieldCount = built.fieldCount,
+                    isCachedState = isCachedState
+                ),
+                message = "Built logout POST payload (refererPath=$refererPath, actionPath=$actionPath, formId=${built.formId}, fields=${built.fieldCount}, bytes=${built.payloadByteSize}, excluded=${built.excludedControlsCount}, excludedImagesOrButtons=${built.excludedImageOrButtonCount}, defaultTarget=${built.usedDefaultTarget}, keys=[${built.formKeys.joinToString(", ")}])"
+            )
+        )
     }
 
     private suspend fun fetchCaptchaBytesInternal(flowId: String? = null): ByteArray? = withContext(Dispatchers.IO) {

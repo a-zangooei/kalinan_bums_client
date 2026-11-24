@@ -12,6 +12,7 @@ import com.example.data.logger.SnapshotDiagnostics
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Interceptor
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -38,6 +39,7 @@ object CullinanHttpClient {
 
     val BASE_URL: String get() = customBaseUrl ?: DEFAULT_BASE_URL
     val LOGIN_URL: String get() = "$BASE_URL/Login.aspx"
+    val DEFAULT_PAGE_URL: String get() = "$BASE_URL/Master/Default.aspx"
     val RESERVATION_URL: String get() = "$BASE_URL/Reservation/Reservation.aspx"
     val MESSAGES_URL: String get() = "$BASE_URL/MyCullinan/MyMessage.aspx"
     val PROFILE_URL: String get() = "$BASE_URL/MyCullinan/MyProfile.aspx"
@@ -54,6 +56,12 @@ object CullinanHttpClient {
     }
 
     val cookieJar = CullinanCookieJar()
+    val masterPageTracker = MasterPageTracker()
+
+    fun clearLocalSession() {
+        masterPageTracker.clear("clear_local_session")
+        cookieJar.clear()
+    }
 
     const val DEFAULT_USER_AGENT =
         "Mozilla/5.0 (Linux; Android 13; Mobile) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36"
@@ -202,19 +210,40 @@ object CullinanHttpClient {
             }.distinct()
 
             val respContentType = response.body?.contentType()?.toString()
+            val respContentLength = response.body?.contentLength()
             val isBinaryAsset = respContentType?.startsWith("image/", ignoreCase = true) == true && response.isSuccessful
             val finalUrlStr = response.request.url.toString()
+            val isLogoutOperation = operation.startsWith("Logout", ignoreCase = true)
+            val isLogoutRedirect = response.isRedirect &&
+                (isLogoutOperation || redirectLocation?.contains("Login.aspx", ignoreCase = true) == true)
             val isSensitiveProfilePage = finalUrlStr.contains("MyProfile.aspx", ignoreCase = true) ||
                 url.contains("MyProfile.aspx", ignoreCase = true)
-            val snapshotRecord = if (!isBinaryAsset && !isSensitiveProfilePage && response.body != null) {
+            val portalHost = BASE_URL.toHttpUrlOrNull()?.host
+            val isPortalRequest = portalHost == null ||
+                req.url.host.equals(portalHost, ignoreCase = true) ||
+                response.request.url.host.equals(portalHost, ignoreCase = true)
+            val isDeltaRequest = req.header("X-MicrosoftAjax")?.contains("Delta=true", ignoreCase = true) == true
+
+            // Never peek or save disk snapshots for logout responses (especially 302 bodies with PII HTML)
+            val snapshotRecord = if (!isBinaryAsset && !isLogoutOperation && !isLogoutRedirect && response.body != null) {
                 try {
                     val peeked = response.peekBody(2 * 1024 * 1024L)
                     val rawText = peeked.string()
-                    if (rawText.isNotEmpty()) {
+                    if (rawText.isNotEmpty() && isPortalRequest) {
+                        masterPageTracker.onHttpResponse(
+                            url = finalUrlStr,
+                            statusCode = response.code,
+                            contentType = respContentType,
+                            rawBody = rawText,
+                            isDeltaRequest = isDeltaRequest,
+                            isLogoutOperation = false
+                        )
+                    }
+                    if (rawText.isNotEmpty() && !isSensitiveProfilePage) {
                         AppLogger.savePageSnapshot(
                             operation = operation,
                             method = method,
-                            url = response.request.url.toString(),
+                            url = finalUrlStr,
                             statusCode = response.code,
                             contentType = respContentType,
                             rawContent = rawText,
@@ -238,6 +267,13 @@ object CullinanHttpClient {
             }
 
             val respLogLevel = if (response.isSuccessful || response.isRedirect) LogLevel.DEBUG else LogLevel.WARN
+            val bodyDiscardNote = if (isLogoutRedirect && (respContentLength ?: 0L) > 0L) {
+                " [RedirectBodyDiscarded=${respContentLength}B]"
+            } else if (isLogoutRedirect) {
+                " [RedirectBodyDiscarded]"
+            } else {
+                ""
+            }
 
             try {
                 AppLogger.log(
@@ -254,9 +290,9 @@ object CullinanHttpClient {
                             url = url,
                             statusCode = response.code,
                             contentType = respContentType,
-                            contentLength = response.body?.contentLength(),
+                            contentLength = respContentLength,
                             redirectCount = redirectCount.takeIf { it > 0 },
-                            finalUrl = response.request.url.toString(),
+                            finalUrl = finalUrlStr,
                             redirectLocation = redirectLocation,
                             setCookieNames = setCookieNames.takeIf { it.isNotEmpty() },
                             isCompatibilitySsl = _isCompatibilityModeActive.value,
@@ -264,6 +300,7 @@ object CullinanHttpClient {
                         ),
                         snapshot = snapshotDiag,
                         message = "HTTP ${response.code} (${duration}ms) - $url" +
+                            bodyDiscardNote +
                             (snapshotDiag?.let { " [Snapshot: ${it.fileName}]" } ?: "")
                     )
                 )

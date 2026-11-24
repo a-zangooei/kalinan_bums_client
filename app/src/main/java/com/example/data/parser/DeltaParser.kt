@@ -24,13 +24,121 @@ data class DeltaResponse(
     val isSessionExpired: Boolean = false
 )
 
+data class TrackerDeltaPatch(
+    val hiddenFields: Map<String, String> = emptyMap(),
+    val updatePanels: Map<String, String> = emptyMap(),
+    val isSessionExpired: Boolean = false
+)
+
 object DeltaParser {
 
     private val TOAST_REGEX = Regex(
         """toastify\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"](?:\s*,\s*['"]([^'"]*)['"])?"""
     )
 
+    private data class CoreParseResult(
+        val updatePanels: Map<String, String>,
+        val hiddenFields: Map<String, String>,
+        val formAction: String?,
+        val redirectUrl: String?,
+        val startupScripts: List<String>,
+        val rawTokens: List<DeltaToken>,
+        val errorMessage: String?,
+        val errorStatusCode: String?,
+        val skippedLengthTokens: Int,
+        val truncatedSegments: Int,
+        val regexFallbacksUsed: List<String>,
+        val isSessionExpired: Boolean
+    )
+
+    fun extractTrackerPatch(deltaText: String): TrackerDeltaPatch {
+        val core = parseCore(deltaText)
+        return TrackerDeltaPatch(
+            hiddenFields = core.hiddenFields,
+            updatePanels = core.updatePanels,
+            isSessionExpired = core.isSessionExpired
+        )
+    }
+
     fun parse(deltaText: String, flowId: String? = null): DeltaResponse {
+        val core = parseCore(deltaText)
+        val updatePanels = core.updatePanels
+        val hiddenFields = core.hiddenFields
+        val startupScripts = core.startupScripts
+        val rawTokens = core.rawTokens
+        val redirectUrl = core.redirectUrl
+        val formAction = core.formAction
+        val errorMessage = core.errorMessage
+        val errorStatusCode = core.errorStatusCode
+        val skippedLengthTokens = core.skippedLengthTokens
+        val truncatedSegments = core.truncatedSegments
+        val regexFallbacksUsed = core.regexFallbacksUsed
+        val isSessionExpired = core.isSessionExpired
+
+        // Extract toastify notification
+        var extractedToastType: String? = null
+        var extractedToastMessage: String? = null
+        var extractedToastTitle: String? = null
+
+        // Check startupScripts first, or fallback to searching deltaText
+        val scriptsToCheck = startupScripts.ifEmpty { listOf(deltaText) }
+        for (script in scriptsToCheck) {
+            val match = TOAST_REGEX.find(script)
+            if (match != null) {
+                extractedToastType = match.groupValues[1].trim()
+                extractedToastMessage = match.groupValues[2].trim()
+                extractedToastTitle = match.groupValues.getOrNull(3)?.trim()
+                break
+            }
+        }
+
+        val tokenCounts = rawTokens.groupingBy { it.type }.eachCount()
+            .entries.joinToString(", ") { "${it.key}=${it.value}" }
+        val hasAnomaly = errorMessage != null || isSessionExpired || truncatedSegments > 0 ||
+            skippedLengthTokens > 0 || regexFallbacksUsed.isNotEmpty() || rawTokens.isEmpty()
+
+        com.example.data.logger.AppLogger.log(
+            com.example.data.logger.LogEntry(
+                timestamp = "",
+                level = if (hasAnomaly) com.example.data.logger.LogLevel.WARN else com.example.data.logger.LogLevel.DEBUG,
+                component = "DeltaParser",
+                operation = "ParseDelta",
+                flowId = flowId,
+                errorCategory = when {
+                    errorMessage != null -> "DELTA_SERVER_ERROR"
+                    isSessionExpired -> "DELTA_SESSION_EXPIRED"
+                    truncatedSegments > 0 || rawTokens.isEmpty() -> "DELTA_MALFORMED"
+                    regexFallbacksUsed.isNotEmpty() -> "DELTA_FALLBACK_REGEX"
+                    else -> null
+                },
+                aspnet = com.example.data.logger.AspNetDiagnostics(
+                    viewStateLength = hiddenFields["__VIEWSTATE"]?.length,
+                    viewStateFingerprint = hiddenFields["__VIEWSTATE"]?.let { com.example.data.logger.LogSanitizer.computeFingerprint(it) },
+                    viewStateGenerator = hiddenFields["__VIEWSTATEGENERATOR"],
+                    hasEventValidation = hiddenFields.containsKey("__EVENTVALIDATION"),
+                    eventValidationLength = hiddenFields["__EVENTVALIDATION"]?.length
+                ),
+                message = "Parsed ${rawTokens.size} delta tokens [$tokenCounts] (Panels: ${updatePanels.keys.joinToString()}, Redirect=$redirectUrl, Expired=$isSessionExpired, Toast=$extractedToastType, ErrorCode=$errorStatusCode, Fallbacks=${regexFallbacksUsed.take(5)}, Truncated=$truncatedSegments, SkippedLen=$skippedLengthTokens)"
+            )
+        )
+
+        return DeltaResponse(
+            updatePanels = updatePanels,
+            hiddenFields = hiddenFields,
+            formAction = formAction,
+            redirectUrl = redirectUrl,
+            startupScripts = startupScripts,
+            rawTokens = rawTokens,
+            toastType = extractedToastType,
+            toastMessage = extractedToastMessage,
+            toastTitle = extractedToastTitle,
+            errorMessage = errorMessage,
+            errorStatusCode = errorStatusCode,
+            isSessionExpired = isSessionExpired
+        )
+    }
+
+    private fun parseCore(deltaText: String): CoreParseResult {
         val updatePanels = mutableMapOf<String, String>()
         val hiddenFields = mutableMapOf<String, String>()
         val startupScripts = mutableListOf<String>()
@@ -42,7 +150,7 @@ object DeltaParser {
 
         var skippedLengthTokens = 0
         var truncatedSegments = 0
-        var regexFallbacksUsed = mutableListOf<String>()
+        val regexFallbacksUsed = mutableListOf<String>()
 
         var pos = 0
         val len = deltaText.length
@@ -146,68 +254,21 @@ object DeltaParser {
             }
         }
 
-        // Extract toastify notification
-        var extractedToastType: String? = null
-        var extractedToastMessage: String? = null
-        var extractedToastTitle: String? = null
-
-        // Check startupScripts first, or fallback to searching deltaText
-        val scriptsToCheck = startupScripts.ifEmpty { listOf(deltaText) }
-        for (script in scriptsToCheck) {
-            val match = TOAST_REGEX.find(script)
-            if (match != null) {
-                extractedToastType = match.groupValues[1].trim()
-                extractedToastMessage = match.groupValues[2].trim()
-                extractedToastTitle = match.groupValues.getOrNull(3)?.trim()
-                break
-            }
-        }
-
         val isSessionExpired = redirectUrl?.contains("Login.aspx", ignoreCase = true) == true ||
             (updatePanels.isEmpty() && (deltaText.contains("Login.aspx") || deltaText.contains("txtUsernamePlain")))
 
-        val tokenCounts = rawTokens.groupingBy { it.type }.eachCount()
-            .entries.joinToString(", ") { "${it.key}=${it.value}" }
-        val hasAnomaly = errorMessage != null || isSessionExpired || truncatedSegments > 0 ||
-            skippedLengthTokens > 0 || regexFallbacksUsed.isNotEmpty() || rawTokens.isEmpty()
-
-        com.example.data.logger.AppLogger.log(
-            com.example.data.logger.LogEntry(
-                timestamp = "",
-                level = if (hasAnomaly) com.example.data.logger.LogLevel.WARN else com.example.data.logger.LogLevel.DEBUG,
-                component = "DeltaParser",
-                operation = "ParseDelta",
-                flowId = flowId,
-                errorCategory = when {
-                    errorMessage != null -> "DELTA_SERVER_ERROR"
-                    isSessionExpired -> "DELTA_SESSION_EXPIRED"
-                    truncatedSegments > 0 || rawTokens.isEmpty() -> "DELTA_MALFORMED"
-                    regexFallbacksUsed.isNotEmpty() -> "DELTA_FALLBACK_REGEX"
-                    else -> null
-                },
-                aspnet = com.example.data.logger.AspNetDiagnostics(
-                    viewStateLength = hiddenFields["__VIEWSTATE"]?.length,
-                    viewStateFingerprint = hiddenFields["__VIEWSTATE"]?.let { com.example.data.logger.LogSanitizer.computeFingerprint(it) },
-                    viewStateGenerator = hiddenFields["__VIEWSTATEGENERATOR"],
-                    hasEventValidation = hiddenFields.containsKey("__EVENTVALIDATION"),
-                    eventValidationLength = hiddenFields["__EVENTVALIDATION"]?.length
-                ),
-                message = "Parsed ${rawTokens.size} delta tokens [$tokenCounts] (Panels: ${updatePanels.keys.joinToString()}, Redirect=$redirectUrl, Expired=$isSessionExpired, Toast=$extractedToastType, ErrorCode=$errorStatusCode, Fallbacks=${regexFallbacksUsed.take(5)}, Truncated=$truncatedSegments, SkippedLen=$skippedLengthTokens)"
-            )
-        )
-
-        return DeltaResponse(
+        return CoreParseResult(
             updatePanels = updatePanels,
             hiddenFields = hiddenFields,
             formAction = formAction,
             redirectUrl = redirectUrl,
             startupScripts = startupScripts,
             rawTokens = rawTokens,
-            toastType = extractedToastType,
-            toastMessage = extractedToastMessage,
-            toastTitle = extractedToastTitle,
             errorMessage = errorMessage,
             errorStatusCode = errorStatusCode,
+            skippedLengthTokens = skippedLengthTokens,
+            truncatedSegments = truncatedSegments,
+            regexFallbacksUsed = regexFallbacksUsed,
             isSessionExpired = isSessionExpired
         )
     }

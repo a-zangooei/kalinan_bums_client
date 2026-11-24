@@ -180,36 +180,70 @@ fun KalinanApp(
             profileViewModel.ensureAvatarLoaded()
         }
 
-        val handleLogout: () -> Unit = remember(authViewModel, menuViewModel, profileViewModel, authRepo, context) {
+        val purgeAllLocalSessionState: (String) -> Unit = remember(
+            authViewModel,
+            menuViewModel,
+            messagesViewModel,
+            profileViewModel
+        ) {
+            { reason ->
+                menuViewModel.clearSession()
+                messagesViewModel.clearSession()
+                profileViewModel.clearSession()
+                activeSession = null
+                activeSurveyUrl = null
+                selectedBottomTab = 0
+                com.example.data.network.CullinanHttpClient.clearLocalSession()
+                val webViewCookiesCleared = runCatching {
+                    android.webkit.CookieManager.getInstance().apply {
+                        removeAllCookies(null)
+                        flush()
+                    }
+                    true
+                }.getOrDefault(false)
+                authViewModel.onLogout()
+                AppLogger.logInfo(
+                    component = "Logout",
+                    operation = "LogoutLocalCleanupComplete",
+                    message = "Completed unconditional local session purge (reason=$reason, webViewCookiesCleared=$webViewCookiesCleared)"
+                )
+            }
+        }
+
+        val handleLogout: () -> Unit = remember(
+            authViewModel,
+            menuViewModel,
+            messagesViewModel,
+            profileViewModel,
+            authRepo,
+            purgeAllLocalSessionState,
+            context
+        ) {
             {
                 if (!isLoggingOut) {
                     isLoggingOut = true
-                    AppLogger.logAction("User initiated real server logout")
+                    AppLogger.logAction(
+                        action = "User initiated real server logout",
+                        details = "tab=$selectedBottomTab, blocking=$isMandatoryBlocking"
+                    )
                     val currentMenu = menuViewModel.weeklyMenu.value
+                    menuViewModel.cancelPendingRequests()
+                    messagesViewModel.cancelPendingRequests()
+                    profileViewModel.cancelPendingRequests()
 
                     coroutineScope.launch {
                         try {
-                            val serverResult = authRepo.logoutFromServer(currentMenu)
-                            if (serverResult.isSuccess) {
+                            val outcome = authRepo.logoutDetailed(currentMenu)
+                            if (outcome.serverConfirmed) {
                                 Toast.makeText(context, "خروج از حساب کاربری با موفقیت انجام شد.", Toast.LENGTH_SHORT).show()
                             } else {
-                                Toast.makeText(context, "خروج در سمت سرور با خطا مواجه شد؛ نشست محلی پاک‌سازی گردید.", Toast.LENGTH_LONG).show()
+                                Toast.makeText(context, "خروج در سمت سرور تأیید نشد؛ نشست محلی به‌طور کامل پاک‌سازی گردید.", Toast.LENGTH_LONG).show()
                             }
                         } catch (e: Exception) {
-                            AppLogger.logError("Logout", "Logout request failed", e)
-                            Toast.makeText(context, "خروج در سمت سرور با خطا مواجه شد؛ نشست محلی پاک‌سازی گردید.", Toast.LENGTH_LONG).show()
+                            AppLogger.logError("Logout", "Logout request failed", e, operation = "HandleLogoutException", errorCategory = "LOGOUT_UNHANDLED_EXCEPTION")
+                            Toast.makeText(context, "خروج در سمت سرور با خطا مواجه شد؛ نشست محلی به‌طور کامل پاک‌سازی گردید.", Toast.LENGTH_LONG).show()
                         } finally {
-                            // 1. Purge active local session state & in-memory PII
-                            profileViewModel.clearSession()
-                            activeSession = null
-                            activeSurveyUrl = null
-                            selectedBottomTab = 0
-                            menuViewModel.clearUnreadBlocked()
-                            menuViewModel.clearSurveyBlocked()
-                            // 2. Clear local cookies AFTER server request completed
-                            com.example.data.network.CullinanHttpClient.cookieJar.clear()
-                            // 3. Reset credentials per Remember-Me/Biometric rules and fetch fresh Login.aspx
-                            authViewModel.onLogout()
+                            purgeAllLocalSessionState("user_logout")
                             isLoggingOut = false
                         }
                     }
@@ -357,6 +391,8 @@ fun KalinanApp(
                                 onOpenProfile = {
                                     profileViewModel.openProfile(session, menuViewModel.weeklyMenu.value)
                                 },
+                                onLogout = handleLogout,
+                                isLoggingOut = isLoggingOut,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(paddingValues)
@@ -425,14 +461,7 @@ fun KalinanApp(
                     profileViewModel.refreshProfile(session, menuViewModel.weeklyMenu.value)
                 },
                 onRelogin = {
-                    profileViewModel.clearSession()
-                    activeSession = null
-                    activeSurveyUrl = null
-                    selectedBottomTab = 0
-                    menuViewModel.clearUnreadBlocked()
-                    menuViewModel.clearSurveyBlocked()
-                    com.example.data.network.CullinanHttpClient.cookieJar.clear()
-                    authViewModel.onLogout()
+                    purgeAllLocalSessionState("profile_session_expired_relogin")
                 },
                 onOpenUnreadMessages = {
                     profileViewModel.closeProfile()

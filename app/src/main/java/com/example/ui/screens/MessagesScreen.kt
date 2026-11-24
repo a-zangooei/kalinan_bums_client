@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.automirrored.filled.ExitToApp
 import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.DoneAll
@@ -87,6 +88,8 @@ fun MessagesScreen(
     onUnlockedSuccess: () -> Unit,
     avatarBytes: ByteArray? = null,
     onOpenProfile: (() -> Unit)? = null,
+    onLogout: (() -> Unit)? = null,
+    isLoggingOut: Boolean = false,
     modifier: Modifier = Modifier
 ) {
     val pageState by viewModel.pageState.collectAsStateWithLifecycle()
@@ -149,6 +152,27 @@ fun MessagesScreen(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "تازه‌سازی پیام‌ها"
                         )
+                    }
+                    if (onLogout != null) {
+                        IconButton(
+                            onClick = onLogout,
+                            enabled = !isLoggingOut && !isReadingSerialized,
+                            modifier = Modifier
+                                .minimumInteractiveComponentSize()
+                                .testTag("messages_logout_button")
+                        ) {
+                            if (isLoggingOut) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(20.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Icon(
+                                    imageVector = Icons.AutoMirrored.Filled.ExitToApp,
+                                    contentDescription = "خروج از حساب کاربری"
+                                )
+                            }
+                        }
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(

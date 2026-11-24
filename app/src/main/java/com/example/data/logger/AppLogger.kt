@@ -518,9 +518,11 @@ object AppLogger {
 
         e.aspnet?.let { a ->
             sb.append("\n  ASP.NET: ViewState len=${a.viewStateLength ?: 0} (fp=${a.viewStateFingerprint ?: "N/A"})")
+            a.viewStateGenerator?.let { sb.append(" Gen=$it") }
             a.viewStateChunksCount?.let { sb.append(" Chunks=$it") }
             if (a.hasEventValidation) sb.append(" EV_len=${a.eventValidationLength ?: 0}")
             a.eventTarget?.let { sb.append(" Target=$it") }
+            a.formFieldCount?.let { sb.append(" Fields=$it") }
             if (a.isCachedState) sb.append(" (Cached)")
         }
 

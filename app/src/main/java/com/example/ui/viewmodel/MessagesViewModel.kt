@@ -41,11 +41,36 @@ class MessagesViewModel(
     val userMessage: StateFlow<String?> = _userMessage.asStateFlow()
 
     private val detailMutex = Mutex()
+    private var loadJob: Job? = null
+    private var loadMoreJob: Job? = null
     private var detailJob: Job? = null
+    private var markAllJob: Job? = null
+
+    fun cancelPendingRequests() {
+        loadJob?.cancel()
+        loadMoreJob?.cancel()
+        detailJob?.cancel()
+        markAllJob?.cancel()
+        loadJob = null
+        loadMoreJob = null
+        detailJob = null
+        markAllJob = null
+    }
+
+    fun clearSession() {
+        cancelPendingRequests()
+        _pageState.value = MessagesPageState(isLoading = false)
+        _isReadingSerialized.value = false
+        _readingProgress.value = null
+        _selectedMessageDetail.value = null
+        _isDetailLoading.value = false
+        _userMessage.value = null
+    }
 
     fun loadMessages() {
         AppLogger.logInfo("MessagesViewModel", "LoadMessages", "Fetching MyMessage.aspx messages")
-        viewModelScope.launch {
+        loadJob?.cancel()
+        loadJob = viewModelScope.launch {
             _pageState.value = _pageState.value.copy(isLoading = true, isLoadingMore = false, errorMessage = null)
             val result = messageRepository.fetchMessagesPage()
             result.onSuccess { state ->
@@ -78,7 +103,8 @@ class MessagesViewModel(
             "Loading next messages page (${current.nextPageEventArgument})"
         )
 
-        viewModelScope.launch {
+        loadMoreJob?.cancel()
+        loadMoreJob = viewModelScope.launch {
             _pageState.value = _pageState.value.copy(isLoadingMore = true, errorMessage = null)
             detailMutex.withLock {
                 val latestState = _pageState.value
@@ -175,7 +201,8 @@ class MessagesViewModel(
         }
 
         AppLogger.logInfo("MessagesViewModel", "MarkAllUnreadStart", "Starting serialized read for $unreadCount unread messages")
-        viewModelScope.launch {
+        markAllJob?.cancel()
+        markAllJob = viewModelScope.launch {
             _isReadingSerialized.value = true
             _readingProgress.value = "آماده‌سازی برای ثبت خوانده‌شدن پیام‌ها..."
             _pageState.value = _pageState.value.copy(errorMessage = null)

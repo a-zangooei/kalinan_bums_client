@@ -91,9 +91,15 @@ class ProfileViewModel(
         _isProfileSheetOpen.value = false
     }
 
-    fun clearSession() {
+    fun cancelPendingRequests() {
         avatarJob?.cancel()
         profileJob?.cancel()
+        avatarJob = null
+        profileJob = null
+    }
+
+    fun clearSession() {
+        cancelPendingRequests()
         hasAttemptedAvatarForSession = false
         _isAvatarLoading.value = false
         _avatarBytes.value = null
