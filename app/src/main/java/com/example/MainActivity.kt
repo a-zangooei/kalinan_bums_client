@@ -51,14 +51,23 @@ import com.example.ui.viewmodel.UpdateViewModel
 import kotlinx.coroutines.launch
 
 import androidx.compose.material.icons.filled.Mail
+import androidx.compose.material.icons.filled.ShoppingBasket
 import androidx.compose.material3.Badge
 import androidx.compose.material3.BadgedBox
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
+import com.example.ui.screens.FoodBasketScreen
 import com.example.ui.screens.MessagesScreen
 import com.example.ui.screens.menu.SurveyWebViewScreen
 import com.example.ui.screens.profile.ProfileModalSheet
+import com.example.ui.viewmodel.FoodBasketViewModel
 import com.example.ui.viewmodel.MessagesViewModel
 import com.example.ui.viewmodel.ProfileViewModel
+
+private const val TAB_RESERVATION = 0
+private const val TAB_FOOD_BASKET = 1
+private const val TAB_MESSAGES = 2
+private const val TAB_SETTINGS = 3
 
 class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -94,10 +103,11 @@ fun KalinanApp(
 ) {
     var activeSession by remember { mutableStateOf<UserSession?>(null) }
     var isPreLoginSettingsOpen by remember { mutableStateOf(false) }
-    var selectedBottomTab by remember { mutableIntStateOf(0) } // 0: Reservation, 1: Messages, 2: Settings
+    var selectedBottomTab by remember { mutableIntStateOf(TAB_RESERVATION) }
 
     val authViewModel: AuthViewModel = viewModel()
     val menuViewModel: MenuViewModel = viewModel()
+    val foodBasketViewModel: FoodBasketViewModel = viewModel()
     val messagesViewModel: MessagesViewModel = viewModel()
     val profileViewModel: ProfileViewModel = viewModel()
     val updateViewModel: UpdateViewModel = viewModel()
@@ -105,16 +115,22 @@ fun KalinanApp(
     val updateInfo by updateViewModel.updateInfo.collectAsStateWithLifecycle()
     val userStatus by updateViewModel.userStatus.collectAsStateWithLifecycle()
     val isCheckingUpdates by updateViewModel.isChecking.collectAsStateWithLifecycle()
+    val weeklyMenuState by menuViewModel.weeklyMenu.collectAsStateWithLifecycle()
     val messagesState by messagesViewModel.pageState.collectAsStateWithLifecycle()
     val menuBlockedByUnread by menuViewModel.hasUnreadMessagesBlocked.collectAsStateWithLifecycle()
+    val isBasketTransactionInProgress by foodBasketViewModel.isTransactionInProgress.collectAsStateWithLifecycle()
     val profileAvatarBytes by profileViewModel.avatarBytes.collectAsStateWithLifecycle()
     val profileState by profileViewModel.profileState.collectAsStateWithLifecycle()
     val isProfileSheetOpen by profileViewModel.isProfileSheetOpen.collectAsStateWithLifecycle()
 
+    LaunchedEffect(weeklyMenuState) {
+        foodBasketViewModel.updateWeeklyMenu(weeklyMenuState)
+    }
+
     val isMandatoryBlocking = (activeSession?.hasUnreadMessages == true || menuBlockedByUnread || messagesState.hasUnreadMessages) && !messagesState.isReservationUnlocked
 
     val context = LocalContext.current
-    val shouldProtectWindow = activeSession == null || selectedBottomTab == 2 || isProfileSheetOpen
+    val shouldProtectWindow = activeSession == null || selectedBottomTab == TAB_SETTINGS || isProfileSheetOpen
     LaunchedEffect(shouldProtectWindow) {
         val window = (context as? android.app.Activity)?.window
         if (shouldProtectWindow) {
@@ -156,9 +172,9 @@ fun KalinanApp(
                     messagesViewModel.loadMessages()
                     profileViewModel.ensureAvatarLoaded()
                     if (userSession.hasUnreadMessages) {
-                        selectedBottomTab = 1
+                        selectedBottomTab = TAB_MESSAGES
                     } else {
-                        selectedBottomTab = 0
+                        selectedBottomTab = TAB_RESERVATION
                     }
                     AppLogger.logAction("User logged in (hasUnreadMessages: ${userSession.hasUnreadMessages}, initialTab=$selectedBottomTab)")
                 },
@@ -183,16 +199,18 @@ fun KalinanApp(
         val purgeAllLocalSessionState: (String) -> Unit = remember(
             authViewModel,
             menuViewModel,
+            foodBasketViewModel,
             messagesViewModel,
             profileViewModel
         ) {
             { reason ->
                 menuViewModel.clearSession()
+                foodBasketViewModel.clearSession()
                 messagesViewModel.clearSession()
                 profileViewModel.clearSession()
                 activeSession = null
                 activeSurveyUrl = null
-                selectedBottomTab = 0
+                selectedBottomTab = TAB_RESERVATION
                 com.example.data.network.CullinanHttpClient.clearLocalSession()
                 val webViewCookiesCleared = runCatching {
                     android.webkit.CookieManager.getInstance().apply {
@@ -213,6 +231,7 @@ fun KalinanApp(
         val handleLogout: () -> Unit = remember(
             authViewModel,
             menuViewModel,
+            foodBasketViewModel,
             messagesViewModel,
             profileViewModel,
             authRepo,
@@ -220,7 +239,13 @@ fun KalinanApp(
             context
         ) {
             {
-                if (!isLoggingOut) {
+                if (foodBasketViewModel.isTransactionInProgress.value) {
+                    Toast.makeText(
+                        context,
+                        "لطفاً تا پایان تراکنش سبد غذایی منتظر بمانید.",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                } else if (!isLoggingOut) {
                     isLoggingOut = true
                     AppLogger.logAction(
                         action = "User initiated real server logout",
@@ -228,6 +253,7 @@ fun KalinanApp(
                     )
                     val currentMenu = menuViewModel.weeklyMenu.value
                     menuViewModel.cancelPendingRequests()
+                    foodBasketViewModel.cancelNonTransactionalRequests()
                     messagesViewModel.cancelPendingRequests()
                     profileViewModel.cancelPendingRequests()
 
@@ -252,20 +278,26 @@ fun KalinanApp(
         }
         val onReservationTabClick = remember {
             {
-                selectedBottomTab = 0
+                selectedBottomTab = TAB_RESERVATION
                 AppLogger.logAction("Switched to Reservation tab")
+            }
+        }
+        val onFoodBasketTabClick = remember {
+            {
+                selectedBottomTab = TAB_FOOD_BASKET
+                AppLogger.logAction("Switched to Food Basket tab")
             }
         }
         val onMessagesTabClick = remember(messagesViewModel) {
             {
-                selectedBottomTab = 1
+                selectedBottomTab = TAB_MESSAGES
                 messagesViewModel.loadMessages()
                 AppLogger.logAction("Switched to Messages tab")
             }
         }
         val onSettingsTabClick = remember {
             {
-                selectedBottomTab = 2
+                selectedBottomTab = TAB_SETTINGS
                 AppLogger.logAction("Switched to Settings tab")
             }
         }
@@ -274,8 +306,8 @@ fun KalinanApp(
             AppLogger.logAction("System Back pressed (tab=$selectedBottomTab, blocking=$isMandatoryBlocking)")
             if (isMandatoryBlocking) {
                 handleLogout()
-            } else if (selectedBottomTab != 0) {
-                selectedBottomTab = 0
+            } else if (selectedBottomTab != TAB_RESERVATION) {
+                selectedBottomTab = TAB_RESERVATION
             } else {
                 handleLogout()
             }
@@ -289,7 +321,7 @@ fun KalinanApp(
                         contentColor = MaterialTheme.colorScheme.onSurface
                     ) {
                         NavigationBarItem(
-                            selected = selectedBottomTab == 0,
+                            selected = selectedBottomTab == TAB_RESERVATION,
                             onClick = onReservationTabClick,
                             icon = {
                                 Icon(
@@ -301,18 +333,45 @@ fun KalinanApp(
                                 Text(
                                     text = "رزرو غذا",
                                     fontSize = 11.sp,
-                                    fontWeight = if (selectedBottomTab == 0) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (selectedBottomTab == TAB_RESERVATION) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = TealPrimary,
                                 selectedTextColor = TealPrimary,
                                 indicatorColor = TealPrimary.copy(alpha = 0.12f)
-                            )
+                            ),
+                            modifier = Modifier.testTag("nav_tab_reservation")
                         )
 
                         NavigationBarItem(
-                            selected = selectedBottomTab == 1,
+                            selected = selectedBottomTab == TAB_FOOD_BASKET,
+                            onClick = onFoodBasketTabClick,
+                            icon = {
+                                Icon(
+                                    imageVector = Icons.Default.ShoppingBasket,
+                                    contentDescription = null
+                                )
+                            },
+                            label = {
+                                Text(
+                                    text = "سبد غذایی",
+                                    fontSize = 11.sp,
+                                    fontWeight = if (selectedBottomTab == TAB_FOOD_BASKET) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1
+                                )
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = TealPrimary,
+                                selectedTextColor = TealPrimary,
+                                indicatorColor = TealPrimary.copy(alpha = 0.12f)
+                            ),
+                            modifier = Modifier.testTag("nav_tab_food_basket")
+                        )
+
+                        NavigationBarItem(
+                            selected = selectedBottomTab == TAB_MESSAGES,
                             onClick = onMessagesTabClick,
                             icon = {
                                 BadgedBox(
@@ -337,18 +396,20 @@ fun KalinanApp(
                                 Text(
                                     text = "پیام‌ها",
                                     fontSize = 11.sp,
-                                    fontWeight = if (selectedBottomTab == 1) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (selectedBottomTab == TAB_MESSAGES) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = TealPrimary,
                                 selectedTextColor = TealPrimary,
                                 indicatorColor = TealPrimary.copy(alpha = 0.12f)
-                            )
+                            ),
+                            modifier = Modifier.testTag("nav_tab_messages")
                         )
 
                         NavigationBarItem(
-                            selected = selectedBottomTab == 2,
+                            selected = selectedBottomTab == TAB_SETTINGS,
                             onClick = onSettingsTabClick,
                             icon = {
                                 Icon(
@@ -360,21 +421,23 @@ fun KalinanApp(
                                 Text(
                                     text = "تنظیمات",
                                     fontSize = 11.sp,
-                                    fontWeight = if (selectedBottomTab == 2) FontWeight.Bold else FontWeight.Normal
+                                    fontWeight = if (selectedBottomTab == TAB_SETTINGS) FontWeight.Bold else FontWeight.Normal,
+                                    maxLines = 1
                                 )
                             },
                             colors = NavigationBarItemDefaults.colors(
                                 selectedIconColor = TealPrimary,
                                 selectedTextColor = TealPrimary,
                                 indicatorColor = TealPrimary.copy(alpha = 0.12f)
-                            )
+                            ),
+                            modifier = Modifier.testTag("nav_tab_settings")
                         )
                     }
                 },
                 modifier = Modifier.fillMaxSize()
             ) { paddingValues ->
                 when (selectedBottomTab) {
-                    0 -> {
+                    TAB_RESERVATION -> {
                         if (isMandatoryBlocking) {
                             MessagesScreen(
                                 viewModel = messagesViewModel,
@@ -385,14 +448,14 @@ fun KalinanApp(
                                     activeSession = activeSession?.copy(hasUnreadMessages = false)
                                     menuViewModel.clearUnreadBlocked()
                                     menuViewModel.loadInitialMenu()
-                                    selectedBottomTab = 0
+                                    selectedBottomTab = TAB_RESERVATION
                                 },
                                 avatarBytes = profileAvatarBytes,
                                 onOpenProfile = {
                                     profileViewModel.openProfile(session, menuViewModel.weeklyMenu.value)
                                 },
                                 onLogout = handleLogout,
-                                isLoggingOut = isLoggingOut,
+                                isLoggingOut = isLoggingOut || isBasketTransactionInProgress,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(paddingValues)
@@ -402,7 +465,7 @@ fun KalinanApp(
                                 userSession = session,
                                 viewModel = menuViewModel,
                                 onLogout = handleLogout,
-                                isLoggingOut = isLoggingOut,
+                                isLoggingOut = isLoggingOut || isBasketTransactionInProgress,
                                 profileAvatarBytes = profileAvatarBytes,
                                 onOpenProfile = {
                                     profileViewModel.openProfile(session, menuViewModel.weeklyMenu.value)
@@ -417,16 +480,66 @@ fun KalinanApp(
                             )
                         }
                     }
-                    1 -> MessagesScreen(
+                    TAB_FOOD_BASKET -> {
+                        if (isMandatoryBlocking) {
+                            MessagesScreen(
+                                viewModel = messagesViewModel,
+                                isBlockingMode = true,
+                                onNavigateBack = null,
+                                onUnlockedSuccess = {
+                                    AppLogger.logInfo("Navigation", "MessagesUnlocked", "FoodBasket unlocked from blocking MessagesScreen")
+                                    activeSession = activeSession?.copy(hasUnreadMessages = false)
+                                    menuViewModel.clearUnreadBlocked()
+                                    menuViewModel.loadInitialMenu()
+                                    foodBasketViewModel.refreshPage()
+                                    selectedBottomTab = TAB_FOOD_BASKET
+                                },
+                                avatarBytes = profileAvatarBytes,
+                                onOpenProfile = {
+                                    profileViewModel.openProfile(session, menuViewModel.weeklyMenu.value)
+                                },
+                                onLogout = handleLogout,
+                                isLoggingOut = isLoggingOut || isBasketTransactionInProgress,
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(paddingValues)
+                            )
+                        } else {
+                            FoodBasketScreen(
+                                viewModel = foodBasketViewModel,
+                                onLogout = handleLogout,
+                                isLoggingOut = isLoggingOut,
+                                profileAvatarBytes = profileAvatarBytes,
+                                onOpenProfile = {
+                                    profileViewModel.openProfile(session, menuViewModel.weeklyMenu.value)
+                                },
+                                onOpenMessagesTab = {
+                                    selectedBottomTab = TAB_MESSAGES
+                                    messagesViewModel.loadMessages()
+                                },
+                                onOpenSurveyWebView = { url ->
+                                    AppLogger.logAction("Opening in-app Survey WebView from FoodBasket")
+                                    activeSurveyUrl = url
+                                },
+                                onReloginRequired = {
+                                    purgeAllLocalSessionState("food_basket_session_expired")
+                                },
+                                modifier = Modifier
+                                    .fillMaxSize()
+                                    .padding(paddingValues)
+                            )
+                        }
+                    }
+                    TAB_MESSAGES -> MessagesScreen(
                         viewModel = messagesViewModel,
                         isBlockingMode = isMandatoryBlocking,
-                        onNavigateBack = if (!isMandatoryBlocking) { { selectedBottomTab = 0 } } else null,
+                        onNavigateBack = if (!isMandatoryBlocking) { { selectedBottomTab = TAB_RESERVATION } } else null,
                         onUnlockedSuccess = {
                             AppLogger.logInfo("Navigation", "MessagesUnlocked", "Reservation unlocked from Messages tab")
                             activeSession = activeSession?.copy(hasUnreadMessages = false)
                             menuViewModel.clearUnreadBlocked()
                             menuViewModel.loadInitialMenu()
-                            selectedBottomTab = 0
+                            selectedBottomTab = TAB_RESERVATION
                         },
                         avatarBytes = profileAvatarBytes,
                         onOpenProfile = {
@@ -436,10 +549,10 @@ fun KalinanApp(
                             .fillMaxSize()
                             .padding(paddingValues)
                     )
-                    2 -> SettingsScreen(
+                    TAB_SETTINGS -> SettingsScreen(
                         currentThemeMode = currentThemeMode,
                         onThemeChanged = onThemeChanged,
-                        onNavigateBack = { selectedBottomTab = 0 },
+                        onNavigateBack = { selectedBottomTab = TAB_RESERVATION },
                         onCheckForUpdates = { updateViewModel.checkForUpdates(isManual = true) },
                         isCheckingForUpdates = isCheckingUpdates,
                         onSecuritySettingsChanged = {
@@ -466,7 +579,7 @@ fun KalinanApp(
                 },
                 onOpenUnreadMessages = {
                     profileViewModel.closeProfile()
-                    selectedBottomTab = 1
+                    selectedBottomTab = TAB_MESSAGES
                     messagesViewModel.loadMessages()
                 }
             )
@@ -481,6 +594,9 @@ fun KalinanApp(
                     activeSession = activeSession?.copy(hasMandatorySurvey = false)
                     menuViewModel.loadInitialMenu()
                     messagesViewModel.loadMessages()
+                    if (selectedBottomTab == TAB_FOOD_BASKET) {
+                        foodBasketViewModel.refreshPage()
+                    }
                 },
                 modifier = Modifier.fillMaxSize()
             )

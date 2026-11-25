@@ -41,6 +41,7 @@ object CullinanHttpClient {
     val LOGIN_URL: String get() = "$BASE_URL/Login.aspx"
     val DEFAULT_PAGE_URL: String get() = "$BASE_URL/Master/Default.aspx"
     val RESERVATION_URL: String get() = "$BASE_URL/Reservation/Reservation.aspx"
+    val FOOD_BASKET_SALE_URL: String get() = "$BASE_URL/FoodBasket/FoodBasketSale.aspx"
     val MESSAGES_URL: String get() = "$BASE_URL/MyCullinan/MyMessage.aspx"
     val PROFILE_URL: String get() = "$BASE_URL/MyCullinan/MyProfile.aspx"
     val SURVEY_URL: String get() = "$BASE_URL/Survey/Survey_Answer.aspx"
@@ -57,6 +58,7 @@ object CullinanHttpClient {
 
     val cookieJar = CullinanCookieJar()
     val masterPageTracker = MasterPageTracker()
+    val portalSessionMutex = kotlinx.coroutines.sync.Mutex()
 
     fun clearLocalSession() {
         masterPageTracker.clear("clear_local_session")
@@ -218,6 +220,8 @@ object CullinanHttpClient {
                 (isLogoutOperation || redirectLocation?.contains("Login.aspx", ignoreCase = true) == true)
             val isSensitiveProfilePage = finalUrlStr.contains("MyProfile.aspx", ignoreCase = true) ||
                 url.contains("MyProfile.aspx", ignoreCase = true)
+            val isSensitiveFoodBasketPage = finalUrlStr.contains("FoodBasketSale.aspx", ignoreCase = true) ||
+                url.contains("FoodBasketSale.aspx", ignoreCase = true)
             val portalHost = BASE_URL.toHttpUrlOrNull()?.host
             val isPortalRequest = portalHost == null ||
                 req.url.host.equals(portalHost, ignoreCase = true) ||
@@ -239,7 +243,7 @@ object CullinanHttpClient {
                             isLogoutOperation = false
                         )
                     }
-                    if (rawText.isNotEmpty() && !isSensitiveProfilePage) {
+                    if (rawText.isNotEmpty() && !isSensitiveProfilePage && !isSensitiveFoodBasketPage) {
                         AppLogger.savePageSnapshot(
                             operation = operation,
                             method = method,
@@ -376,6 +380,37 @@ object CullinanHttpClient {
                     .followSslRedirects(false)
                     .build()
                 fallbackNoRedirect.newCall(request).execute()
+            } else {
+                throw e
+            }
+        }
+    }
+
+    fun executeCallNoRetry(request: Request): Response {
+        val baseClient = if (_isCompatibilityModeActive.value) fallbackClient else standardClient
+        val noRetryClient = baseClient.newBuilder()
+            .retryOnConnectionFailure(false)
+            .build()
+
+        return try {
+            noRetryClient.newCall(request).execute()
+        } catch (e: IOException) {
+            if (isSslHandshakeException(e) && !_isCompatibilityModeActive.value) {
+                Log.w(TAG, "SSL failure on standard client (no-retry). Activating fallback...", e)
+                val logCtx = request.tag(LogContext::class.java)
+                AppLogger.logWarn(
+                    component = "CullinanHttpClient",
+                    operation = "SslFallbackActivatedNoRetry",
+                    message = "TLS handshake failed on no-retry client for ${request.url}; switching to unverified compatibility SSL fallback",
+                    throwable = e,
+                    flowId = logCtx?.flowId,
+                    errorCategory = "TLS_FALLBACK"
+                )
+                _isCompatibilityModeActive.value = true
+                val fallbackNoRetry = fallbackClient.newBuilder()
+                    .retryOnConnectionFailure(false)
+                    .build()
+                fallbackNoRetry.newCall(request).execute()
             } else {
                 throw e
             }

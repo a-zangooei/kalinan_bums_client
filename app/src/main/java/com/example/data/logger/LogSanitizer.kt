@@ -46,6 +46,9 @@ object LogSanitizer {
             // Mask Captcha values and any OCR digit keys across key-value and JSON formats
             .replace(Regex("(txtCaptcha|captcha|captchaInput|captchaDigits|recognizedDigits|solvedDigits|autoCaptchaDigits)(?:=|%3D|:\\s*)\"?([^&\\s\",}]+)\"?", RegexOption.IGNORE_CASE), "$1=[REDACTED_CAPTCHA]")
             .replace(Regex("\"(txtCaptcha|captcha|captchaInput|captchaDigits|recognizedDigits|solvedDigits|autoCaptchaDigits)\"\\s*:\\s*\"([^\"]*)\"", RegexOption.IGNORE_CASE), "\"$1\":\"[REDACTED_CAPTCHA]\"")
+            // Mask FoodBasket server reservation ID across raw, ASP.NET control name, URL-encoded, and JSON formats
+            .replace(Regex("""((?:ctl00(?:\x24|%24)cphMain(?:\x24|%24))?hdnReservationId)(?:=|%3D|:\s*)"?([^&\s",}]+)"?""", RegexOption.IGNORE_CASE), "$1=[REDACTED_RESERVATION_ID]")
+            .replace(Regex(""""((?:ctl00\x24cphMain\x24)?hdnReservationId)"\s*:\s*"([^"]*)"""", RegexOption.IGNORE_CASE), "\"$1\":\"[REDACTED_RESERVATION_ID]\"")
             // Mask ASP.NET Session Cookie
             .replace(Regex("ASP\\.NET_SessionId(?:=|%3D)([^;,\\s&]+)", RegexOption.IGNORE_CASE), "ASP.NET_SessionId=***")
             // Mask Anti-CSRF Token

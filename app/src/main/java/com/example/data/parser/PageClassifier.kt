@@ -16,6 +16,7 @@ object PageClassifier {
     const val TYPE_MESSAGES = "MESSAGES"
     const val TYPE_SURVEY = "SURVEY"
     const val TYPE_PROFILE = "PROFILE"
+    const val TYPE_FOOD_BASKET_SALE = "FOOD_BASKET_SALE"
     const val TYPE_ERROR = "ERROR"
     const val TYPE_UNKNOWN = "UNKNOWN"
 
@@ -213,6 +214,21 @@ object PageClassifier {
             if (isProfileUrl) evidence.add("URL_CONTAINS_MYPROFILE")
             return ClassificationResult(
                 pageType = TYPE_PROFILE,
+                evidence = evidence
+            )
+        }
+
+        // 8. Check for Food Basket Sale Page (FoodBasket/FoodBasketSale.aspx)
+        val hasFoodBasketForm = doc.select("form#MainForm[action*='FoodBasketSale']").isNotEmpty()
+        val hasFoodBasketControls = doc.select("#cphMain_txtDate, #cphMain_btnFoodReload").size >= 2 ||
+            doc.select("input[name='ctl00\$cphMain\$btnFoodReload']").isNotEmpty()
+        val isFoodBasketUrl = finalUrl?.contains("FoodBasketSale.aspx", ignoreCase = true) == true
+        if (hasFoodBasketControls || (isFoodBasketUrl && hasFoodBasketForm)) {
+            if (hasFoodBasketForm) evidence.add("FORM_ACTION_FOOD_BASKET_SALE")
+            if (hasFoodBasketControls) evidence.add("HAS_FOOD_BASKET_CONTROLS")
+            if (isFoodBasketUrl) evidence.add("URL_CONTAINS_FOOD_BASKET_SALE")
+            return ClassificationResult(
+                pageType = TYPE_FOOD_BASKET_SALE,
                 evidence = evidence
             )
         }

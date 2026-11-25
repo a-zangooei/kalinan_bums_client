@@ -33,7 +33,8 @@ data class TrackerDeltaPatch(
 object DeltaParser {
 
     private val TOAST_REGEX = Regex(
-        """toastify\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"]([^'"]+)['"](?:\s*,\s*['"]([^'"]*)['"])?"""
+        """toastify\s*\(\s*['"]([^'"]+)['"]\s*,\s*['"](.*?)['"](?:\s*,\s*['"]([^'"]*)['"])?""",
+        setOf(RegexOption.DOT_MATCHES_ALL)
     )
 
     private data class CoreParseResult(

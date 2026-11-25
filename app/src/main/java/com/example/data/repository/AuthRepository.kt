@@ -39,8 +39,8 @@ class AuthRepository(
 ) {
 
     companion object {
-        // Shared across all AuthRepository instances so login, captcha, and logout serialize cleanly
-        internal val sessionMutex = Mutex()
+        // Shared across AuthRepository and FoodBasketRepository so login, logout, and basket transactions serialize cleanly
+        internal val sessionMutex get() = CullinanHttpClient.portalSessionMutex
     }
 
     suspend fun fetchLoginPage(): Result<LoginPageState> = withContext(Dispatchers.IO) {
