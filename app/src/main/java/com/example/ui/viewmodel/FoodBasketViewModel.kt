@@ -20,6 +20,7 @@ import com.example.data.model.ReservationStatus
 import com.example.data.model.UnreadMessagesException
 import com.example.data.model.WeeklyMenu
 import com.example.data.network.CullinanHttpClient
+import com.example.data.repository.FoodBasketDataSource
 import com.example.data.repository.FoodBasketRepository
 import com.example.data.repository.FoodBasketSessionExpiredException
 import kotlinx.coroutines.Job
@@ -68,7 +69,7 @@ data class FoodBasketUiState(
 }
 
 class FoodBasketViewModel(
-    private val repository: FoodBasketRepository = FoodBasketRepository()
+    private val repository: FoodBasketDataSource = FoodBasketRepository()
 ) : ViewModel() {
 
     private val _uiState = MutableStateFlow(FoodBasketUiState())

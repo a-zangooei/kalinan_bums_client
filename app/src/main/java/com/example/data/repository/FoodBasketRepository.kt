@@ -31,13 +31,23 @@ class FoodBasketSessionExpiredException(
     message: String = "نشست کاری شما در سامانه منقضی شده است. لطفاً مجدداً وارد شوید."
 ) : Exception(message)
 
-class FoodBasketRepository {
+interface FoodBasketDataSource {
+    suspend fun openSalePage(): Result<BasketPageSession>
+    suspend fun reloadSlot(slot: BasketSlot, session: BasketPageSession): Result<BasketReloadResult>
+    suspend fun executeSaleOrCancel(
+        action: BasketActionButton,
+        item: BasketItemState,
+        session: BasketPageSession
+    ): Result<BasketActionOutcome>
+}
+
+class FoodBasketRepository : FoodBasketDataSource {
 
     /**
      * Loads GET /FoodBasket/FoodBasketSale.aspx and extracts initial WebForms tokens and form defaults.
      * Uses the shared portal mutex so basket operations never overlap with auth/logout transitions.
      */
-    suspend fun openSalePage(): Result<BasketPageSession> = withContext(Dispatchers.IO) {
+    override suspend fun openSalePage(): Result<BasketPageSession> = withContext(Dispatchers.IO) {
         val flowId = AppLogger.generateFlowId("basket_get")
         AppLogger.log(
             LogEntry(
@@ -119,7 +129,7 @@ class FoodBasketRepository {
      * Queries the server status for one (date, reserveType, mealType) slot via btnFoodReload.
      * Logs only non-sensitive metadata (slot date/meal/reserveType, HTTP code, status enum).
      */
-    suspend fun reloadSlot(
+    override suspend fun reloadSlot(
         slot: BasketSlot,
         session: BasketPageSession
     ): Result<BasketReloadResult> = withContext(Dispatchers.IO) {
@@ -189,7 +199,7 @@ class FoodBasketRepository {
      * Never retries automatically; wraps IOExceptions as BasketUncertainTimeoutException so callers
      * can run btnFoodReload first before deciding what happened on the server.
      */
-    suspend fun executeSaleOrCancel(
+    override suspend fun executeSaleOrCancel(
         action: BasketActionButton,
         item: BasketItemState,
         session: BasketPageSession

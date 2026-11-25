@@ -117,6 +117,7 @@ fun FoodBasketScreen(
                             modifier = Modifier
                                 .fillMaxSize()
                                 .widthIn(max = 600.dp)
+                                .testTag("basket_lazy_column")
                         ) {
                             uiState.sessionExpiredMessage?.let { expiredMsg ->
                                 item(key = "session_expired") {
