@@ -45,6 +45,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -313,6 +314,7 @@ private fun DismissibleFeedbackCard(
         border = BorderStroke(1.dp, contentColor.copy(alpha = 0.25f)),
         modifier = modifier
             .fillMaxWidth()
+            .semantics(mergeDescendants = true) {}
             .testTag(testTag)
     ) {
         Row(
